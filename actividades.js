@@ -247,12 +247,28 @@
     return CATALOGO.find(function (x) { return x.codigo === codigo; }) || null;
   }
 
-  // El MET de cada ejercicio es el de su código en el catálogo.
-  EJERCICIOS.forEach(function (x) { x.met = porCodigo(x.codigo).met; });
-  var TIPOS = TIPOS_EJERCICIO.map(function (t) { return { codigo: t[0], nombre: t[1], met: porCodigo(t[0]).met }; });
+  /*
+   * «A tope»: el mismo tipo de ejercicio con esfuerzo vigoroso en el Compendio (sin pausas, terminas sin aire).
+   *   mancuernas 02054 (3,5) → pesas vigoroso 02050 (6,0) · pierna con peso 02052 (5,0) → 02050 (6,0)
+   *   calistenia moderada 02022 (3,8) → vigorosa 02020 (7,5) · calistenia vigorosa 02020 (7,5) → HIIT vigoroso 02214 (11,0)
+   *   abdominales suaves 02024 (2,8) → calistenia moderada 02022 (3,8) · peso corporal suave 02056 (3,0) → intenso 02057 (6,5)
+   * Los que ya son lo más intenso de su tipo (swings 02058) no tienen «a tope».
+   */
+  var VIGOROSO = { '02054': '02050', '02052': '02050', '02022': '02020', '02020': '02214', '02024': '02022', '02056': '02057' };
+  /** MET «a tope» de un tipo de ejercicio (por su código), o null si no tiene. */
+  function metTope(codigo) {
+    var v = Object.prototype.hasOwnProperty.call(VIGOROSO, codigo) ? porCodigo(VIGOROSO[codigo]) : null;
+    return v ? v.met : null;
+  }
+
+  // El MET de cada ejercicio es el de su código en el catálogo; el de «a tope», el del código vigoroso.
+  EJERCICIOS.forEach(function (x) { x.met = porCodigo(x.codigo).met; x.metTope = metTope(x.codigo); });
+  var TIPOS = TIPOS_EJERCICIO.map(function (t) {
+    return { codigo: t[0], nombre: t[1], met: porCodigo(t[0]).met, metTope: metTope(t[0]) };
+  });
 
   return {
     CATALOGO: CATALOGO, EJERCICIOS: EJERCICIOS, TIPOS_EJERCICIO: TIPOS,
-    buscar: buscar, porCodigo: porCodigo, normal: normal
+    buscar: buscar, porCodigo: porCodigo, normal: normal, metTope: metTope
   };
 });

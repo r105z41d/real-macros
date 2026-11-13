@@ -410,9 +410,15 @@
 
   // ---------- Ejercicio de cada día ----------
   // entreno = { palBase, dias: { lun: [{ nombre, met, minutos, nota, rounds? }], ... } }
-  // rounds (opcional) = { n, min, descanso, ejercicios: [{ nombre, codigo, met, reps } | null, ...] }:
+  // rounds (opcional) = { n, min, descanso, ejercicios: [{ nombre, codigo, met, metTope, reps, tope } | null, ...] }:
   //   n rounds de `min` minutos de la actividad, cada uno seguido de un descanso de `descanso` minutos;
   //   ejercicios[i] es lo que se hizo en el descanso i (null = descanso sin ejercicio, no suma).
+  //   tope = ese minuto fue a tope: usa metTope (el MET vigoroso de su tipo) si lo tiene.
+
+  /** MET con que cuenta un descanso: el vigoroso si fue a tope y su tipo lo tiene. */
+  function metDescanso(e) {
+    return e.tope && esNum(e.metTope) ? e.metTope : e.met;
+  }
 
   /**
    * Minutos y kcal extra de una actividad, con sus descansos si va por rounds. Las reps se cuentan
@@ -429,10 +435,11 @@
     slots.forEach(function (e) {
       if (!e) return;
       conEjercicio += 1;
-      kDesc += kcalActividad(e.met, peso, r.descanso);
+      kDesc += kcalActividad(metDescanso(e), peso, r.descanso);
       var t = porEjercicio.find(function (y) { return y.nombre === e.nombre; });
-      if (!t) { t = { nombre: e.nombre, descansos: 0, reps: 0, sinReps: 0 }; porEjercicio.push(t); }
+      if (!t) { t = { nombre: e.nombre, descansos: 0, aTope: 0, reps: 0, sinReps: 0 }; porEjercicio.push(t); }
       t.descansos += 1;
+      if (metDescanso(e) !== e.met) t.aTope += 1;
       if (esNum(e.reps)) t.reps += e.reps; else t.sinReps += 1;
     });
     var minDesc = r ? r.n * r.descanso : 0;
@@ -656,6 +663,7 @@
     sesionRounds: sesionRounds,
     sesionBloques: sesionBloques,
     detalleActividad: detalleActividad,
+    metDescanso: metDescanso,
     kcalEjercicioDia: kcalEjercicioDia,
     calcPerfilDia: calcPerfilDia,
     calcSemanaPerfil: calcSemanaPerfil,

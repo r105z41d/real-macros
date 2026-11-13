@@ -1,5 +1,5 @@
 /* REAL MACROS: service worker. Guarda la app para que abra sin internet. */
-var VERSION = 'real-macros-app-5a33f7dd35';
+var VERSION = 'real-macros-app-787e9ecb5a';
 var FUENTES = 'real-macros-fuentes';
 var ARCHIVOS = ["./", "actividades.js", "alimentos.js", "app.js", "apple-touch-icon.png", "calc.js", "config.js", "datos.js", "dia.js", "entreno.js", "icon-192.png", "icon-512.png", "icon-maskable-512.png", "icon.svg", "index.html", "inicio.js", "instalar.js", "manifest.webmanifest", "peso.js", "recetas.js", "semana.js", "store.js", "styles.css"];
 

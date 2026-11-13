@@ -239,7 +239,10 @@
   };
   var MAX_REPS = 999;
 
-  /** Lo que se hizo en un descanso: { nombre, codigo, met, reps } o null (descanso sin ejercicio). */
+  /**
+   * Lo que se hizo en un descanso: { nombre, codigo, met, metTope, reps, tope } o null (descanso sin ejercicio).
+   * metTope = MET de su tipo con esfuerzo vigoroso (null si no tiene); tope = ese minuto fue a tope.
+   */
   function validarEjercicioDescanso(raw) {
     if (raw == null || raw === '') return { ok: true, ejercicio: null };
     if (typeof raw !== 'object') return { ok: false, error: 'Un descanso no es válido.' };
@@ -248,6 +251,13 @@
     var met = num(raw.met);
     if (!isFinite(met) || met < LIMITES_ACT.met[0] || met > LIMITES_ACT.met[1]) {
       return { ok: false, error: '«' + nombre + '»: MET debe estar entre ' + LIMITES_ACT.met[0] + ' y ' + LIMITES_ACT.met[1] + '.' };
+    }
+    var metTope = null;
+    if (raw.metTope != null && raw.metTope !== '') {
+      metTope = num(raw.metTope);
+      if (!isFinite(metTope) || metTope < LIMITES_ACT.met[0] || metTope > LIMITES_ACT.met[1]) {
+        return { ok: false, error: '«' + nombre + '»: el MET a tope debe estar entre ' + LIMITES_ACT.met[0] + ' y ' + LIMITES_ACT.met[1] + '.' };
+      }
     }
     var reps = null;
     if (raw.reps != null && raw.reps !== '') {
@@ -258,7 +268,10 @@
     }
     return {
       ok: true,
-      ejercicio: { nombre: nombre, codigo: typeof raw.codigo === 'string' ? raw.codigo.trim().slice(0, 10) : '', met: met, reps: reps }
+      ejercicio: {
+        nombre: nombre, codigo: typeof raw.codigo === 'string' ? raw.codigo.trim().slice(0, 10) : '',
+        met: met, metTope: metTope, reps: reps, tope: raw.tope === true
+      }
     };
   }
 

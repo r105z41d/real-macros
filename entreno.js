@@ -134,13 +134,22 @@
     return html + '</optgroup><option value="otro">Otro ejercicio…</option>';
   }
 
+  /** MET «a tope» de un descanso: el guardado o, si no tiene, el de su tipo en el catálogo. */
+  function metTopeDe(s) { return s ? (A.ok(s.metTope) ? s.metTope : ACT.metTope(s.codigo)) : null; }
+
   function filaSlot(x, i, mis) {
     var s = x.rounds.ejercicios[i] || null;
     var n = i + 1;
+    var mt = metTopeDe(s);
+    var tope = mt != null
+      ? '<button type="button" class="slot-tope" data-accion="tope" aria-pressed="' + !!s.tope + '" title="' +
+        A.fmtUp(s.met, 1) + ' MET normal · ' + A.fmtUp(mt, 1) + ' MET a tope" aria-label="Descanso ' + n + ' a tope">A tope</button>'
+      : '<span class="slot-tope-vacio"></span>';
     return '<li class="slot" data-i="' + i + '"><span class="slot-n">' + n + '</span>' +
       '<select class="slot-ej" aria-label="Ejercicio del descanso ' + n + '">' + opcionesEjercicio(s, mis) + '</select>' +
       '<span class="gramos slot-reps"><input type="text" inputmode="numeric" maxlength="3" value="' + (s && s.reps != null ? s.reps : '') + '"' +
-        (s ? '' : ' disabled') + ' placeholder="reps" aria-label="Repeticiones en el descanso ' + n + '"><span class="u-reps"> reps</span></span></li>';
+        (s ? '' : ' disabled') + ' placeholder="reps" aria-label="Repeticiones en el descanso ' + n + '"><span class="u-reps"> reps</span></span>' +
+      tope + '</li>';
   }
 
   function filaOtro(i) {
@@ -164,7 +173,7 @@
       html += '<ul class="rounds-reps">' + d.porEjercicio.map(function (t) {
         var veces = t.descansos + (t.descansos === 1 ? ' descanso' : ' descansos');
         return '<li><span>' + esc(t.nombre) + '</span><b>' + (t.reps ? A.fmt(t.reps, 0) + ' reps' : '—') + '</b>' +
-          '<small>' + veces + (t.sinReps ? ', ' + t.sinReps + ' sin anotar' : '') + '</small></li>';
+          '<small>' + veces + (t.aTope ? ', ' + t.aTope + ' a tope' : '') + (t.sinReps ? ', ' + t.sinReps + ' sin anotar' : '') + '</small></li>';
       }).join('') + '</ul>';
     }
     return html;
@@ -185,7 +194,9 @@
         '<ol class="slots">' + slots.join('') + '</ol>' +
       '</div>' +
       '<div class="rounds-resumen">' + resumenRounds(p, x) + '</div>' +
-      '<p class="hint">Cada descanso suma según su ejercicio: el Compendio da el gasto por minuto de cada tipo de ejercicio, no por repetición. Las reps quedan anotadas para tu seguimiento, pero no cambian las kcal.</p>' +
+      '<p class="hint">Cada descanso suma según su ejercicio: el Compendio da el gasto por minuto de cada tipo de ejercicio, no por repetición. ' +
+        'Marca <b>A tope</b> cuando ese minuto fue sin parar y terminaste sin aire: cuenta con el esfuerzo vigoroso de su tipo (flexiones 3,8 → 7,5 MET; mancuernas 3,5 → 6,0). ' +
+        'Las reps quedan anotadas para tu seguimiento, pero no cambian las kcal.</p>' +
       '<button type="button" class="link-btn" data-accion="sin-rounds">Quitar los rounds</button>' +
       '</div>';
   }
@@ -353,8 +364,12 @@
   function ponerEnDescanso(x, i, ej) {
     var lista = x.rounds.ejercicios;
     while (lista.length <= i) lista.push(null);
-    var reps = lista[i] ? lista[i].reps : null;
-    lista[i] = ej ? { nombre: ej.nombre, codigo: ej.codigo || '', met: ej.met, reps: reps } : null;
+    var antes = lista[i];
+    if (!ej) { lista[i] = null; return; }
+    var nuevo = { nombre: ej.nombre, codigo: ej.codigo || '', met: ej.met, metTope: null, reps: antes ? antes.reps : null, tope: false };
+    nuevo.metTope = metTopeDe(Object.assign({}, nuevo, { metTope: ej.metTope }));
+    nuevo.tope = !!(antes && antes.tope && nuevo.metTope != null); // «a tope» sigue si el nuevo ejercicio lo tiene
+    lista[i] = nuevo;
   }
 
   $('act-lista').addEventListener('change', function (ev) {
@@ -401,7 +416,7 @@
     if (!nombre) { fila.querySelector('.slot-otro-nombre').focus(); return; }
     var tipo = ACT.TIPOS_EJERCICIO.find(function (t) { return t.codigo === fila.querySelector('.slot-otro-tipo').value; });
     var i = +fila.dataset.i;
-    ponerEnDescanso(x, i, { nombre: nombre, codigo: tipo.codigo, met: tipo.met });
+    ponerEnDescanso(x, i, { nombre: nombre, codigo: tipo.codigo, met: tipo.met, metTope: tipo.metTope });
     A.persist();
     refrescarSlots(li, x);
     refrescarParcial(li, x);
@@ -444,6 +459,14 @@
         avisoDeshacer('«' + x.nombre + '» ya no va por rounds: quedan sus ' + A.fmtUp(x.minutos, 1) + ' min, sin los descansos.');
       } else if (accion === 'otro-ok' && x.rounds) {
         usarOtro(li, x, acc.closest('.slot'));
+      } else if (accion === 'tope' && x.rounds) {
+        var s = x.rounds.ejercicios[+acc.closest('.slot').dataset.i];
+        if (!s) return;
+        s.metTope = metTopeDe(s);
+        s.tope = !s.tope && s.metTope != null;
+        acc.setAttribute('aria-pressed', String(s.tope));
+        A.persist();
+        refrescarParcial(li, x);
       } else if (accion === 'otro-no' && x.rounds) {
         refrescarSlots(li, x);
       }
