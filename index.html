@@ -1,0 +1,600 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>REAL MACROS</title>
+<meta name="theme-color" content="#1F6B52">
+<meta name="description" content="Calorías, macros, comidas y ejercicio: calcula tu objetivo diario y lleva tu plan de la semana.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="REAL MACROS">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap topbar-inner">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">RM</span>
+      <span class="brand-name">REAL MACROS</span>
+    </div>
+    <span class="sync sync-local" id="sync-estado" role="status" title="Guardado en este navegador">Solo este navegador</span>
+    <nav class="tabs" aria-label="Secciones">
+      <a class="tab" href="#perfil" data-vista="perfil" aria-current="page">Perfil</a>
+      <a class="tab" href="#alimentos" data-vista="alimentos">Alimentos</a>
+      <a class="tab" href="#dia" data-vista="dia">Día</a>
+      <a class="tab" href="#semana" data-vista="semana">Semana</a>
+      <a class="tab" href="#entreno" data-vista="entreno">Entreno</a>
+      <a class="tab" href="#peso" data-vista="peso">Peso</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap main">
+<section class="vista" id="vista-perfil" aria-label="Perfil">
+  <div class="profiles" role="group" aria-label="Perfiles">
+    <div class="profile-chips" id="profile-chips"></div>
+    <div class="profile-actions">
+      <button type="button" class="btn btn-ghost" id="btn-add-profile">+ Perfil</button>
+      <button type="button" class="btn" id="btn-import">Importar</button>
+      <button type="button" class="btn" id="btn-export-all">Exportar todos</button>
+    </div>
+    <input type="file" id="f-importar" accept=".json,application/json" hidden>
+  </div>
+  <div class="bar-status" id="bar-status" role="status" aria-live="polite"></div>
+
+  <section class="card empty" id="empty-state" hidden>
+    <h2 class="empty-title">Crea tu primer perfil</h2>
+    <p>Cada perfil guarda peso, altura, edad, nivel de actividad y objetivo, y con eso calcula sus calorías y macros del día. Puedes tener varios, uno por persona.</p>
+    <div class="empty-actions">
+      <button type="button" class="btn btn-primary" id="btn-empty-add">Crear perfil</button>
+      <button type="button" class="btn" id="btn-empty-import">Importar archivo de perfil</button>
+    </div>
+    <p class="hint">Los archivos de perfil terminan en <code>.json</code> y se crean con «Exportar».</p>
+  </section>
+
+  <div class="perfil-grid" id="perfil-grid">
+    <!-- Resultados -->
+    <section class="results" aria-labelledby="res-title" aria-live="polite">
+      <div class="card hero">
+        <p class="eyebrow" id="res-title">Objetivo diario · <span id="res-nombre">—</span></p>
+        <p class="hero-kcal"><span id="res-objetivo">—</span><span class="unit">kcal</span></p>
+        <p class="hero-sub" id="res-sub">—</p>
+
+        <div class="split" id="res-split" role="img" aria-label="Reparto de calorías por macro">
+          <span class="seg seg-prot"></span><span class="seg seg-grasa"></span><span class="seg seg-carbs"></span>
+        </div>
+
+        <div class="macros">
+          <div class="macro macro-prot">
+            <p class="macro-name">Proteína</p>
+            <p class="macro-g"><span id="res-prot-g">—</span><span class="unit">g</span></p>
+            <p class="macro-meta"><span id="res-prot-kcal">—</span> kcal · <span id="res-prot-pct">—</span></p>
+          </div>
+          <div class="macro macro-grasa">
+            <p class="macro-name">Grasa</p>
+            <p class="macro-g"><span id="res-grasa-g">—</span><span class="unit">g</span></p>
+            <p class="macro-meta"><span id="res-grasa-kcal">—</span> kcal · <span id="res-grasa-pct">—</span></p>
+          </div>
+          <div class="macro macro-carbs">
+            <p class="macro-name">Carbos</p>
+            <p class="macro-g"><span id="res-carbs-g">—</span><span class="unit">g</span></p>
+            <p class="macro-meta"><span id="res-carbs-kcal">—</span> kcal · <span id="res-carbs-pct">—</span></p>
+          </div>
+        </div>
+      </div>
+
+      <dl class="stats">
+        <div><dt>TMB</dt><dd><span id="res-tmb">—</span> <small>kcal</small></dd></div>
+        <div><dt>TDEE</dt><dd><span id="res-tdee">—</span> <small>kcal</small></dd></div>
+        <div><dt>IMC</dt><dd><span id="res-imc">—</span> <small id="res-imc-cat"></small></dd></div>
+      </dl>
+
+      <ul class="avisos" id="res-avisos"></ul>
+
+      <section class="card guias" aria-labelledby="guias-title">
+        <h3 class="guias-title" id="guias-title">Chequeo con guías de nutrición</h3>
+        <ul class="guias-list" id="res-guias"></ul>
+      </section>
+
+      <details class="card desglose" open>
+        <summary>Cómo se calcula</summary>
+        <ol class="formula" id="res-formula"></ol>
+        <p class="note">Las kcal objetivo, no el TDEE, son la base del reparto de macros. Proteína y carbohidratos aportan 4 kcal/g; la grasa, 9 kcal/g.</p>
+      </details>
+    </section>
+
+    <!-- Formulario -->
+    <form class="card form" id="perfil-form" autocomplete="off" novalidate>
+      <h2 class="form-title">Datos del perfil</h2>
+
+      <div class="field">
+        <label for="f-nombre">Nombre</label>
+        <input id="f-nombre" name="nombre" type="text" maxlength="30">
+      </div>
+
+      <fieldset class="field">
+        <legend>Sexo</legend>
+        <div class="seg-control">
+          <input type="radio" id="f-sexo-h" name="sexo" value="h"><label for="f-sexo-h">Hombre</label>
+          <input type="radio" id="f-sexo-m" name="sexo" value="m"><label for="f-sexo-m">Mujer</label>
+        </div>
+      </fieldset>
+
+      <div class="row-3">
+        <div class="field">
+          <label for="f-peso">Peso <span class="u">kg</span></label>
+          <input id="f-peso" name="peso" type="text" inputmode="decimal">
+        </div>
+        <div class="field">
+          <label for="f-altura">Altura <span class="u">cm</span></label>
+          <input id="f-altura" name="altura" type="text" inputmode="decimal">
+        </div>
+        <div class="field">
+          <label for="f-edad">Edad <span class="u">años</span></label>
+          <input id="f-edad" name="edad" type="text" inputmode="numeric">
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="f-factor">Nivel de actividad</label>
+        <select id="f-factor" name="factor"></select>
+        <div class="field-inline" id="factor-custom-wrap" hidden>
+          <label for="f-factor-custom">Factor</label>
+          <input id="f-factor-custom" name="factorCustom" type="text" inputmode="decimal" placeholder="1,6">
+        </div>
+        <p class="hint">En la pestaña Entreno lo calculas con tus ejercicios y lo pasas aquí con un botón.</p>
+      </div>
+
+      <fieldset class="field">
+        <legend>Objetivo</legend>
+        <div class="seg-control seg-3">
+          <input type="radio" id="f-modo-deficit" name="modo" value="deficit"><label for="f-modo-deficit">Déficit</label>
+          <input type="radio" id="f-modo-mant" name="modo" value="mantener"><label for="f-modo-mant">Mantener</label>
+          <input type="radio" id="f-modo-sup" name="modo" value="superavit"><label for="f-modo-sup">Superávit</label>
+        </div>
+        <div class="field-inline">
+          <label for="f-ajuste">kcal por día</label>
+          <input id="f-ajuste" name="ajuste" type="text" inputmode="numeric">
+        </div>
+        <div class="presets">
+          <button type="button" class="chip" data-preset="300">Suave 300</button>
+          <button type="button" class="chip" data-preset="500">Agresivo 500</button>
+        </div>
+      </fieldset>
+
+      <div class="row-2">
+        <div class="field">
+          <label for="f-prot">Proteína <span class="u">g/kg</span></label>
+          <input id="f-prot" name="protGkg" type="text" inputmode="decimal">
+          <p class="hint" id="hint-prot">Rango 1,6–2,2</p>
+        </div>
+        <div class="field">
+          <label for="f-grasa">Grasa <span class="u">% kcal</span></label>
+          <input id="f-grasa" name="grasaPct" type="text" inputmode="decimal">
+          <p class="hint" id="hint-grasa">Rango 20–30 %</p>
+        </div>
+      </div>
+
+      <div class="form-foot">
+        <span class="save-status" id="save-status" role="status"></span>
+        <span class="foot-actions">
+          <button type="button" class="btn" id="btn-export-one">Exportar perfil</button>
+          <span class="danger-zone" id="danger-zone">
+            <button type="button" class="btn btn-text" id="btn-del">Eliminar perfil</button>
+          </span>
+        </span>
+      </div>
+    </form>
+  </div>
+
+  <section class="card sem-card datos-card" id="instalar-card" aria-labelledby="instalar-title" hidden>
+    <h2 class="card-title" id="instalar-title">Instálala en tu teléfono</h2>
+    <p id="instalar-texto"></p>
+    <div class="foot-actions"><button type="button" class="btn btn-primary" id="btn-instalar" hidden>Instalar app</button></div>
+  </section>
+
+  <section class="card sem-card datos-card" aria-labelledby="datos-title">
+    <h2 class="card-title" id="datos-title">Tus datos</h2>
+    <p id="datos-donde"></p>
+    <div class="foot-actions">
+      <button type="button" class="btn btn-primary" id="btn-respaldo">Descargar copia completa</button>
+      <button type="button" class="btn" id="btn-respaldo-importar">Importar copia o archivo</button>
+    </div>
+    <p class="hint">La copia trae perfiles, alimentos, recetas, días, entreno y pesos en un solo archivo .json. Guárdala de vez en cuando; al importarla se actualiza lo que ya existe y se agrega lo que falta.</p>
+  </section>
+</section>
+
+<section class="vista" id="vista-alimentos" aria-labelledby="alim-title" hidden>
+  <div class="view-bar">
+    <h1 class="view-title" id="alim-title">Alimentos <span class="count" id="alim-count"></span></h1>
+    <div class="profile-actions">
+      <button type="button" class="btn btn-primary" id="btn-alim-add">+ Alimento</button>
+      <button type="button" class="btn" id="btn-alim-import">Importar</button>
+      <button type="button" class="btn" id="btn-alim-export">Exportar</button>
+    </div>
+  </div>
+  <nav class="subnav" aria-label="Biblioteca">
+    <a href="#alimentos" aria-current="page">Alimentos</a>
+    <a href="#recetas">Recetas</a>
+  </nav>
+  <div class="bar-status" id="alim-status" role="status" aria-live="polite"></div>
+
+  <div class="card empty" id="alim-empty" hidden>
+    <h2 class="empty-title">Arma tu lista de alimentos</h2>
+    <p>Guarda cada alimento con sus macros tal como lo pesas: cocido si lo pesas cocido. Los valores pueden ser por 100 g o por la porción de la etiqueta (por ejemplo, 30 g de proteína en polvo).</p>
+    <div class="empty-actions">
+      <button type="button" class="btn btn-primary" id="btn-alim-empty-add">Agregar alimento</button>
+      <button type="button" class="btn" id="btn-alim-empty-import">Importar archivo de alimentos</button>
+    </div>
+    <p class="hint">Si ya tienes tus alimentos en un archivo <code>.json</code> de la app (una copia o una exportación), tráelos con «Importar».</p>
+  </div>
+
+  <div class="alim-grid" id="alim-grid">
+    <div class="alim-col">
+      <label class="sr-only" for="alim-buscar">Buscar alimento</label>
+      <input id="alim-buscar" type="search" placeholder="Buscar alimento…" autocomplete="off">
+      <div class="alim-head" aria-hidden="true">
+        <span>Alimento · por 100 g</span><span>kcal</span><span>Prot</span><span>Grasa</span><span>Carbos</span>
+      </div>
+      <ul class="alim-lista" id="alim-lista"></ul>
+      <p class="hint" id="alim-nada" hidden>Ningún alimento coincide con la búsqueda.</p>
+    </div>
+
+    <form class="card form alim-form" id="alim-form" autocomplete="off" novalidate hidden>
+      <h2 class="form-title" id="alim-form-title">Nuevo alimento</h2>
+      <div class="field">
+        <label for="a-nombre">Nombre</label>
+        <input id="a-nombre" name="nombre" type="text" maxlength="60" placeholder="Arroz blanco cocido">
+      </div>
+      <div class="field">
+        <label for="a-base">Los valores son por <span class="u">gramos</span></label>
+        <input id="a-base" name="base" type="text" inputmode="decimal" value="100">
+        <p class="hint">100 g, o la porción de la etiqueta (por ejemplo, 30 g por scoop).</p>
+      </div>
+      <div class="row-2">
+        <div class="field">
+          <label for="a-kcal">Calorías <span class="u">kcal</span></label>
+          <input id="a-kcal" name="kcal" type="text" inputmode="decimal">
+        </div>
+        <div class="field">
+          <label for="a-prot">Proteína <span class="u">g</span></label>
+          <input id="a-prot" name="prot" type="text" inputmode="decimal">
+        </div>
+        <div class="field">
+          <label for="a-grasa">Grasa <span class="u">g</span></label>
+          <input id="a-grasa" name="grasa" type="text" inputmode="decimal">
+        </div>
+        <div class="field">
+          <label for="a-carbs">Carbohidratos <span class="u">g</span></label>
+          <input id="a-carbs" name="carbs" type="text" inputmode="decimal">
+        </div>
+      </div>
+
+      <div class="alim-preview" id="a-preview" aria-live="polite"></div>
+
+      <div class="field">
+        <label for="a-fuente">Fuente</label>
+        <input id="a-fuente" name="fuente" type="text" maxlength="80" list="fuentes" placeholder="Fitia, FatSecret, etiqueta…">
+        <datalist id="fuentes">
+          <option value="Fitia"></option>
+          <option value="FatSecret"></option>
+          <option value="Etiqueta del producto"></option>
+          <option value="Página de venta"></option>
+        </datalist>
+        <p class="links" id="a-links"></p>
+      </div>
+      <div class="field">
+        <label for="a-nota">Nota</label>
+        <input id="a-nota" name="nota" type="text" maxlength="200" placeholder="Cocido, sin aceite…">
+      </div>
+
+      <p class="form-error" id="a-error" role="alert" hidden></p>
+      <div class="form-foot">
+        <span class="foot-actions">
+          <button type="submit" class="btn btn-primary" id="btn-alim-save">Guardar</button>
+          <button type="button" class="btn" id="btn-alim-cancel">Cancelar</button>
+        </span>
+        <span class="danger-zone" id="alim-danger"></span>
+      </div>
+    </form>
+  </div>
+</section>
+
+<section class="vista" id="vista-recetas" aria-labelledby="rec-title" hidden>
+  <div class="view-bar">
+    <h1 class="view-title" id="rec-title">Recetas <span class="count" id="rec-count"></span></h1>
+    <div class="profile-actions">
+      <button type="button" class="btn btn-primary" id="btn-rec-add">+ Receta</button>
+      <button type="button" class="btn" id="btn-rec-import">Importar</button>
+      <button type="button" class="btn" id="btn-rec-export">Exportar</button>
+    </div>
+  </div>
+  <nav class="subnav" aria-label="Biblioteca">
+    <a href="#alimentos">Alimentos</a>
+    <a href="#recetas" aria-current="page">Recetas</a>
+  </nav>
+  <div class="bar-status" id="rec-status" role="status" aria-live="polite"></div>
+
+  <div class="card empty" id="rec-empty" hidden>
+    <h2 class="empty-title">Junta alimentos en una receta</h2>
+    <p>Una receta suma sus ingredientes, como tu hoja «Ensalada». Si cocinas en tanda, anota lo que pesa la olla ya lista y en el día pesas solo tu porción.</p>
+    <div class="empty-actions">
+      <button type="button" class="btn btn-primary" id="btn-rec-empty-add">Crear receta</button>
+      <button type="button" class="btn" id="btn-rec-empty-import">Importar archivo</button>
+    </div>
+  </div>
+
+  <div class="alim-grid" id="rec-grid">
+    <div class="alim-col">
+      <label class="sr-only" for="rec-buscar">Buscar receta</label>
+      <input id="rec-buscar" type="search" placeholder="Buscar receta…" autocomplete="off">
+      <div class="alim-head" aria-hidden="true">
+        <span>Receta · por 100 g</span><span>kcal</span><span>Prot</span><span>Grasa</span><span>Carbos</span>
+      </div>
+      <ul class="alim-lista" id="rec-lista"></ul>
+      <p class="hint" id="rec-nada" hidden>Ninguna receta coincide con la búsqueda.</p>
+    </div>
+
+    <form class="card form alim-form" id="rec-form" autocomplete="off" novalidate hidden>
+      <h2 class="form-title" id="rec-form-title">Nueva receta</h2>
+      <div class="field">
+        <label for="r-nombre">Nombre</label>
+        <input id="r-nombre" name="nombre" type="text" maxlength="60" placeholder="Arroz con pollo">
+      </div>
+      <fieldset class="field">
+        <legend>Ingredientes</legend>
+        <ul class="ing-lista" id="r-ings"></ul>
+        <div class="buscador">
+          <label class="sr-only" for="r-buscar">Agregar ingrediente</label>
+          <input id="r-buscar" type="search" placeholder="Agregar ingrediente…" autocomplete="off"
+                 role="combobox" aria-expanded="false" aria-controls="r-sug" aria-autocomplete="list">
+          <ul class="sugerencias" id="r-sug" role="listbox" hidden></ul>
+        </div>
+      </fieldset>
+      <div class="field">
+        <label for="r-peso">Peso de la preparación lista <span class="u">g, opcional</span></label>
+        <input id="r-peso" name="pesoTotal" type="text" inputmode="decimal">
+        <p class="hint">Si cocinas en tanda, pesa la olla ya lista y anótalo aquí. Vacío = suma de los ingredientes.</p>
+      </div>
+      <div class="alim-preview" id="r-preview" aria-live="polite"></div>
+      <div class="field">
+        <label for="r-nota">Nota</label>
+        <input id="r-nota" name="nota" type="text" maxlength="200">
+      </div>
+      <p class="form-error" id="r-error" role="alert" hidden></p>
+      <div class="form-foot">
+        <span class="foot-actions">
+          <button type="submit" class="btn btn-primary">Guardar</button>
+          <button type="button" class="btn" id="btn-rec-cancel">Cancelar</button>
+        </span>
+        <span class="danger-zone" id="rec-danger"></span>
+      </div>
+    </form>
+  </div>
+</section>
+
+<section class="vista" id="vista-dia" aria-labelledby="dia-title" hidden>
+  <div class="view-bar">
+    <h1 class="view-title" id="dia-title">Día</h1>
+    <div class="profile-chips" id="dia-perfiles" role="group" aria-label="Perfil"></div>
+  </div>
+  <div class="semana" id="dia-semana" role="group" aria-label="Día de la semana"></div>
+  <div class="bar-status" id="dia-status" role="status" aria-live="polite"></div>
+
+  <div class="card empty" id="dia-sin-perfil" hidden>
+    <h2 class="empty-title">Primero crea un perfil</h2>
+    <p>El día se compara con las calorías y macros objetivo de un perfil.</p>
+    <div class="empty-actions"><a class="btn btn-primary" href="#perfil">Ir a Perfil</a></div>
+  </div>
+
+  <div class="dia-grid" id="dia-grid">
+    <section class="card dia-resumen" aria-labelledby="dia-resumen-title">
+      <p class="eyebrow" id="dia-resumen-title">—</p>
+      <div class="medidores" id="dia-medidores"></div>
+      <p class="hint" id="dia-resumen-nota"></p>
+    </section>
+
+    <div class="dia-col">
+      <div class="buscador">
+        <label class="lbl" for="dia-buscar">Agregar alimento o receta</label>
+        <input id="dia-buscar" type="search" placeholder="Escribe para buscar…" autocomplete="off"
+               role="combobox" aria-expanded="false" aria-controls="dia-sug" aria-autocomplete="list">
+        <ul class="sugerencias" id="dia-sug" role="listbox" hidden></ul>
+      </div>
+      <div class="dia-head" aria-hidden="true">
+        <span>Alimento</span><span>Gramos</span><span>kcal</span><span>Prot</span><span>Grasa</span><span>Carbos</span><span></span>
+      </div>
+      <ul class="dia-lista" id="dia-lista"></ul>
+      <p class="hint" id="dia-vacio" hidden>Todavía no hay nada en este día. Busca un alimento o receta arriba, agrégalo y escribe los gramos que pesaste.</p>
+    </div>
+  </div>
+</section>
+
+<section class="vista" id="vista-semana" aria-labelledby="sem-title" hidden>
+  <div class="view-bar">
+    <h1 class="view-title" id="sem-title">Semana</h1>
+    <div class="profile-chips" id="sem-perfiles" role="group" aria-label="Perfil"></div>
+  </div>
+  <div class="bar-status" id="sem-status" role="status" aria-live="polite"></div>
+
+  <div class="card empty" id="sem-sin-perfil" hidden>
+    <h2 class="empty-title">Primero crea un perfil</h2>
+    <p>La semana compara cada día con las calorías y macros objetivo de un perfil.</p>
+    <div class="empty-actions"><a class="btn btn-primary" href="#perfil">Ir a Perfil</a></div>
+  </div>
+
+  <div class="sem-grid" id="sem-grid">
+    <section class="card sem-card sem-tabla-card" aria-labelledby="sem-tabla-title">
+      <h2 class="card-title" id="sem-tabla-title">Lunes a domingo</h2>
+      <div class="tabla-wrap">
+        <table class="sem-tabla">
+          <thead>
+            <tr><th scope="col">Día</th><th scope="col">kcal</th><th scope="col">Prot</th><th scope="col">Grasa</th><th scope="col">Carbos</th><th scope="col"><abbr title="Diferencia contra el objetivo de kcal">vs obj.</abbr></th></tr>
+          </thead>
+          <tbody id="sem-filas"></tbody>
+          <tfoot id="sem-pie"></tfoot>
+        </table>
+      </div>
+      <p class="sem-ritmo" id="sem-ritmo"></p>
+    </section>
+
+    <section class="card sem-card" aria-labelledby="sem-copiar-title">
+      <h2 class="card-title" id="sem-copiar-title">Copiar un día</h2>
+      <div class="field">
+        <label for="sem-origen">Copiar el</label>
+        <select id="sem-origen"></select>
+      </div>
+      <fieldset class="field">
+        <legend>a estos días</legend>
+        <div class="dias-toggle" id="sem-destinos"></div>
+        <div class="presets">
+          <button type="button" class="chip" data-sel="lab">Lun–Vie</button>
+          <button type="button" class="chip" data-sel="todos">Toda la semana</button>
+          <button type="button" class="chip" data-sel="ninguno">Ninguno</button>
+        </div>
+      </fieldset>
+      <div class="sem-copiar-pie" id="sem-copiar-pie">
+        <button type="button" class="btn btn-primary" id="btn-copiar">Copiar</button>
+      </div>
+    </section>
+
+    <section class="card sem-card sem-prep" aria-labelledby="sem-prep-title">
+      <h2 class="card-title" id="sem-prep-title">Para preparar</h2>
+      <p class="hint">Gramos totales de cada alimento, tal como los pesas. Las recetas se abren en sus ingredientes.</p>
+      <div class="prep-controles">
+        <div class="seg-control" role="group" aria-label="Perfiles">
+          <input type="radio" id="prep-uno" name="prep-quien" value="uno" checked><label for="prep-uno" id="prep-uno-lbl">Este perfil</label>
+          <input type="radio" id="prep-todos" name="prep-quien" value="todos"><label for="prep-todos">Todos los perfiles</label>
+        </div>
+        <div class="dias-toggle" id="prep-dias" role="group" aria-label="Días"></div>
+      </div>
+      <ul class="prep-lista" id="prep-lista"></ul>
+      <p class="hint" id="prep-recetas"></p>
+      <p class="hint" id="prep-vacio" hidden>No hay nada planeado en los días elegidos.</p>
+      <div class="foot-actions">
+        <button type="button" class="btn" id="btn-prep-copiar">Copiar lista</button>
+      </div>
+      <textarea class="prep-texto" id="prep-texto" rows="8" readonly hidden aria-label="Lista para copiar"></textarea>
+    </section>
+  </div>
+</section>
+
+<section class="vista" id="vista-entreno" aria-labelledby="ent-title" hidden>
+  <div class="view-bar">
+    <h1 class="view-title" id="ent-title">Entreno</h1>
+    <div class="profile-chips" id="ent-perfiles" role="group" aria-label="Perfil"></div>
+  </div>
+  <div class="bar-status" id="ent-status" role="status" aria-live="polite"></div>
+
+  <div class="card empty" id="ent-sin-perfil" hidden>
+    <h2 class="empty-title">Primero crea un perfil</h2>
+    <p>El gasto del entreno depende del peso de cada perfil.</p>
+    <div class="empty-actions"><a class="btn btn-primary" href="#perfil">Ir a Perfil</a></div>
+  </div>
+
+  <div class="ent-grid" id="ent-grid">
+    <section class="card sem-card ent-lista-card" aria-labelledby="act-title">
+      <h2 class="card-title" id="act-title">Tu ejercicio de la semana</h2>
+      <div class="buscador">
+        <label class="lbl" for="act-buscar">Agregar ejercicio o actividad</label>
+        <input id="act-buscar" type="search" placeholder="Kickboxing, caminar, flexiones, fútbol…" autocomplete="off"
+               role="combobox" aria-expanded="false" aria-controls="act-sug" aria-autocomplete="list">
+        <ul class="sugerencias" id="act-sug" role="listbox" hidden></ul>
+      </div>
+      <div class="act-head" aria-hidden="true">
+        <span>Actividad</span><span>Min por vez</span><span>Veces/sem</span><span>kcal/sem</span><span></span>
+      </div>
+      <ul class="act-lista" id="act-lista"></ul>
+      <p class="hint" id="act-vacio" hidden>Escribe arriba lo que haces (por ejemplo «caminar», «pesas» o «fútbol»), elige la opción que más se parezca y anota cuántos minutos y cuántas veces por semana.</p>
+      <div class="field">
+        <label for="e-palBase">El resto de tu día, sin contar el ejercicio</label>
+        <select id="e-palBase"></select>
+      </div>
+      <div class="foot-actions">
+        <button type="button" class="btn" id="btn-ent-import">Importar</button>
+        <button type="button" class="btn" id="btn-ent-export">Exportar ejercicio</button>
+      </div>
+    </section>
+
+    <section class="card sem-card" aria-labelledby="gasto-title">
+      <h2 class="card-title" id="gasto-title">Lo que suma al día</h2>
+      <div class="cifras" id="ent-cifras"></div>
+      <div id="ent-factor"></div>
+      <p class="hint">Cada actividad suma (MET − 1,5) × kg × horas por vez: lo que gastas de más frente a estar sentado. Los MET son del Compendio de Actividades Físicas 2024; el código de cada uno aparece junto al nombre. Si algo no está en la lista, agrégalo como actividad propia y elige su intensidad.</p>
+    </section>
+  </div>
+</section>
+
+<section class="vista" id="vista-peso" aria-labelledby="peso-title" hidden>
+  <div class="view-bar">
+    <h1 class="view-title" id="peso-title">Peso</h1>
+    <div class="profile-chips" id="peso-perfiles" role="group" aria-label="Perfil"></div>
+  </div>
+  <div class="bar-status" id="peso-status" role="status" aria-live="polite"></div>
+
+  <div class="card empty" id="peso-sin-perfil" hidden>
+    <h2 class="empty-title">Primero crea un perfil</h2>
+    <p>Cada perfil lleva su propio registro de peso.</p>
+    <div class="empty-actions"><a class="btn btn-primary" href="#perfil">Ir a Perfil</a></div>
+  </div>
+
+  <div class="peso-grid" id="peso-grid">
+    <form class="card form" id="peso-form" autocomplete="off" novalidate>
+      <h2 class="form-title">Anotar peso</h2>
+      <div class="row-2">
+        <div class="field"><label for="p-fecha">Fecha</label><input id="p-fecha" type="date"></div>
+        <div class="field"><label for="p-kg">Peso <span class="u">kg</span></label><input id="p-kg" type="text" inputmode="decimal" placeholder="80,0"></div>
+      </div>
+      <p class="hint">En ayunas y después de ir al baño, 3 o más veces por semana. Si repites una fecha, se reemplaza.</p>
+      <p class="form-error" id="p-error" role="alert" hidden></p>
+      <div class="foot-actions"><button type="submit" class="btn btn-primary">Guardar</button></div>
+    </form>
+
+    <section class="card sem-card" aria-labelledby="tend-title">
+      <h2 class="card-title" id="tend-title">Tendencia y mantenimiento real</h2>
+      <div class="cifras" id="peso-cifras"></div>
+      <div id="peso-calib"></div>
+    </section>
+
+    <section class="card sem-card" aria-labelledby="psem-title">
+      <h2 class="card-title" id="psem-title">Promedio por semana</h2>
+      <div class="tabla-wrap"><table class="sem-tabla" id="peso-semanas"></table></div>
+    </section>
+
+    <section class="card sem-card" aria-labelledby="preg-title">
+      <h2 class="card-title" id="preg-title">Registros</h2>
+      <ul class="peso-lista" id="peso-lista"></ul>
+      <div class="foot-actions">
+        <button type="button" class="btn" id="btn-peso-import">Importar</button>
+        <button type="button" class="btn" id="btn-peso-export">Exportar pesos</button>
+      </div>
+    </section>
+  </div>
+</section>
+</main>
+
+<script src="config.js"></script>
+<script src="calc.js"></script>
+<script src="datos.js"></script>
+<script src="store.js"></script>
+<script src="actividades.js"></script>
+<script src="app.js"></script>
+<script src="alimentos.js"></script>
+<script src="recetas.js"></script>
+<script src="dia.js"></script>
+<script src="semana.js"></script>
+<script src="entreno.js"></script>
+<script src="peso.js"></script>
+<script src="inicio.js"></script>
+<script src="instalar.js"></script>
+</body>
+</html>
