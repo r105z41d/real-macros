@@ -41,6 +41,22 @@
     return 'p' + Date.now().toString(36) + contador.toString(36) + Math.random().toString(36).slice(2, 6);
   }
 
+  /**
+   * Un id que viene de un archivo se usa como clave de objetos (días, entreno y pesos por perfil).
+   * Solo se aceptan letras, números y . _ : - (hasta 80), y nunca un nombre que los objetos de
+   * JavaScript ya traen (__proto__, constructor, toString…): con esos, un archivo modificado
+   * podría alterar el funcionamiento de toda la app.
+   */
+  function idSeguro(id) {
+    return typeof id === 'string' && /^[A-Za-z0-9_.:-]{1,80}$/.test(id) && !(id in Object.prototype) && id !== 'prototype';
+  }
+  /** El id del archivo si es seguro; si no, uno nuevo. */
+  function idOGenerar(id) {
+    var t = typeof id === 'string' ? id.trim() : '';
+    return idSeguro(t) ? t : nuevoId();
+  }
+  function propio(obj, clave) { return Object.prototype.hasOwnProperty.call(obj, clave); }
+
   /** Perfil nuevo: medidas vacías para que la persona las llene; el resto con valores de partida. */
   function perfilNuevo() {
     return {
@@ -63,7 +79,7 @@
     var sexo = raw.sexo === 'm' || raw.sexo === 'h' ? raw.sexo : null;
     if (!sexo) return { ok: false, error: '«' + nombre + '»: el sexo debe ser "h" (hombre) o "m" (mujer).' };
 
-    var p = { id: typeof raw.id === 'string' && raw.id.trim() ? raw.id.trim() : nuevoId(), nombre: nombre, sexo: sexo };
+    var p = { id: idOGenerar(raw.id), nombre: nombre, sexo: sexo };
     var campos = Object.keys(LIMITES);
     for (var i = 0; i < campos.length; i++) {
       var k = campos[i];
@@ -101,7 +117,7 @@
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ok: false, error: 'No es un alimento.' };
     var nombre = typeof raw.nombre === 'string' ? raw.nombre.trim().slice(0, 60) : '';
     if (!nombre) return { ok: false, error: 'Un alimento no tiene nombre.' };
-    var a = { id: typeof raw.id === 'string' && raw.id.trim() ? raw.id.trim() : nuevoId(), nombre: nombre };
+    var a = { id: idOGenerar(raw.id), nombre: nombre };
     var campos = Object.keys(LIMITES_ALIMENTO);
     for (var i = 0; i < campos.length; i++) {
       var k = campos[i];
@@ -141,7 +157,7 @@
     for (var i = 0; i < raw.ingredientes.length; i++) {
       var ing = raw.ingredientes[i] || {};
       var g = num(ing.gramos);
-      if (typeof ing.ref !== 'string' || !ing.ref.trim()) return { ok: false, error: 'Receta «' + nombre + '»: un ingrediente no dice qué alimento es.' };
+      if (typeof ing.ref !== 'string' || !idSeguro(ing.ref.trim())) return { ok: false, error: 'Receta «' + nombre + '»: un ingrediente no dice qué alimento es.' };
       if (!gramosValidos(g)) return { ok: false, error: 'Receta «' + nombre + '»: gramos inválidos en un ingrediente.' };
       ingredientes.push({ ref: ing.ref.trim(), gramos: g });
     }
@@ -155,7 +171,7 @@
     return {
       ok: true,
       receta: {
-        id: typeof raw.id === 'string' && raw.id.trim() ? raw.id.trim() : nuevoId(),
+        id: idOGenerar(raw.id),
         nombre: nombre,
         ingredientes: ingredientes,
         pesoTotal: pesoTotal,
@@ -168,12 +184,12 @@
   function validarItemDia(raw) {
     if (!raw || typeof raw !== 'object') return { ok: false, error: 'Línea del día inválida.' };
     if (raw.tipo !== 'alimento' && raw.tipo !== 'receta') return { ok: false, error: 'Línea del día sin tipo (alimento o receta).' };
-    if (typeof raw.ref !== 'string' || !raw.ref.trim()) return { ok: false, error: 'Línea del día sin alimento.' };
+    if (typeof raw.ref !== 'string' || !idSeguro(raw.ref.trim())) return { ok: false, error: 'Línea del día sin alimento.' };
     var g = num(raw.gramos);
     if (!gramosValidos(g)) return { ok: false, error: 'Línea del día con gramos inválidos.' };
     return {
       ok: true,
-      item: { id: typeof raw.id === 'string' && raw.id.trim() ? raw.id.trim() : nuevoId(), tipo: raw.tipo, ref: raw.ref.trim(), gramos: g }
+      item: { id: idOGenerar(raw.id), tipo: raw.tipo, ref: raw.ref.trim(), gramos: g }
     };
   }
 
@@ -191,7 +207,7 @@
     var nombre = typeof raw.nombre === 'string' ? raw.nombre.trim().slice(0, 80) : '';
     if (!nombre) return { ok: false, error: 'Una actividad no tiene nombre.' };
     var act = {
-      id: typeof raw.id === 'string' && raw.id.trim() ? raw.id.trim() : nuevoId(),
+      id: idOGenerar(raw.id),
       nombre: nombre,
       codigo: typeof raw.codigo === 'string' ? raw.codigo.trim().slice(0, 10) : ''
     };
@@ -346,7 +362,7 @@
       var v = validar(raw);
       if (!v.ok) { errores.push(v.error); return; }
       var x = v[clave];
-      var traeId = raw && typeof raw.id === 'string' && raw.id.trim();
+      var traeId = raw && typeof raw.id === 'string' && idSeguro(raw.id.trim());
       var idx = destino.findIndex(function (y) {
         return traeId ? y.id === x.id : (y.nombre || '').toLowerCase() === x.nombre.toLowerCase();
       });
@@ -370,11 +386,8 @@
    */
   function importarDias(res, dias) {
     Object.keys(dias).forEach(function (pid) {
-      var perfil = res.state.perfiles.find(function (p) { return p.id === pid; });
-      if (!perfil) {
-        res.errores.push('Hay un plan de días para el perfil «' + pid + '», que no existe. Importa primero ese perfil.');
-        return;
-      }
+      var perfil = perfilDe(res, pid, 'un plan de días');
+      if (!perfil) return;
       var semana = dias[pid];
       if (!esDias(semana)) return;
       var importados = [];
@@ -385,7 +398,7 @@
           var v = validarItemDia(raw);
           if (v.ok) items.push(v.item); else res.errores.push(perfil.nombre + ', ' + d + ': ' + v.error);
         });
-        if (!res.state.dias[pid]) res.state.dias[pid] = {};
+        if (!propio(res.state.dias, pid)) res.state.dias[pid] = {};
         res.state.dias[pid][d] = items;
         importados.push(d);
       });
@@ -394,6 +407,10 @@
   }
 
   function perfilDe(res, pid, que) {
+    if (!idSeguro(pid)) {
+      res.errores.push('Se ignoró ' + que + ' con un identificador de perfil no válido.');
+      return null;
+    }
     var perfil = res.state.perfiles.find(function (p) { return p.id === pid; });
     if (!perfil) res.errores.push('Hay ' + que + ' para el perfil «' + pid + '», que no existe. Importa primero ese perfil.');
     return perfil;
@@ -418,7 +435,7 @@
     Object.keys(pesos).forEach(function (pid) {
       var perfil = perfilDe(res, pid, 'registros de peso');
       if (!perfil || !Array.isArray(pesos[pid])) return;
-      var lista = res.state.pesos[pid] || [];
+      var lista = propio(res.state.pesos, pid) ? res.state.pesos[pid] : [];
       var n = 0;
       pesos[pid].forEach(function (raw) {
         var v = validarPeso(raw);
@@ -500,6 +517,7 @@
     validarReceta: validarReceta,
     validarItemDia: validarItemDia,
     copiarDia: copiarDia,
+    idSeguro: idSeguro,
     PAL_BASE: PAL_BASE,
     LIMITES_ACT: LIMITES_ACT,
     validarActividad: validarActividad,

@@ -190,7 +190,7 @@
 
   /** Lista → { id: elemento }. */
   function indexar(lista) {
-    var out = {};
+    var out = Object.create(null); // sin prototipo: un id como «toString» no encuentra nada heredado
     (lista || []).forEach(function (x) { out[x.id] = x; });
     return out;
   }
