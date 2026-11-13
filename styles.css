@@ -538,6 +538,33 @@ input[type="search"] {
 .act-item .gramos { justify-content: flex-end; }
 .act-item .gramos input { width: 56px; }
 .act-kcal { text-align: right; font: 700 18px/1 var(--font-display); }
+
+/* Por rounds: el ejercicio de cada descanso */
+.act-a-rounds { justify-self: start; margin-top: 6px; font-size: 13px; text-align: left; }
+.act-rounds {
+  grid-column: 1 / -1; display: grid; gap: 10px; margin-top: 4px; padding: 10px 12px;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--bg);
+}
+.rounds-cfg { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; font-size: 14px; color: var(--muted); }
+.rounds-cfg label { display: inline-flex; align-items: center; gap: 6px; }
+.rounds-cfg input { width: 56px; min-height: 36px; padding: 4px 8px; text-align: right; }
+.rounds-tit { margin: 0; font-weight: 600; font-size: 14px; }
+.rounds-tit small { font-weight: 400; color: var(--muted); }
+.slots { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 6px; }
+.slot { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+.slot-n { font: 600 14px/1 var(--font-display); color: var(--muted); text-align: right; }
+.slot-ej { min-height: 36px; padding: 4px 8px; font-size: 14px; min-width: 0; }
+.act-item .slot-reps { margin-top: 0; justify-content: flex-end; }
+.act-item .slot-reps input { width: 52px; min-height: 36px; padding: 4px 8px; }
+.slot-otro { grid-column: 2 / -1; display: grid; gap: 6px; }
+.slot-otro input, .slot-otro select { min-height: 36px; padding: 4px 8px; font-size: 14px; }
+.rounds-total { margin: 0; font-size: 13px; color: var(--muted); }
+.rounds-reps { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 4px; font-size: 13px; }
+.rounds-reps li { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 10px; }
+.rounds-reps span { min-width: 0; overflow-wrap: anywhere; }
+.rounds-reps small { grid-column: 1 / -1; color: var(--muted); font-size: 12px; }
+.act-rounds .hint { margin: 0; font-size: 12px; }
+.act-rounds > .link-btn { justify-self: start; font-size: 13px; }
 @media (max-width: 620px) {
   .act-head { display: none; }
   .act-item { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 32px; row-gap: 6px; }
@@ -545,6 +572,9 @@ input[type="search"] {
   .act-item .quitar { grid-column: -2 / -1; grid-row: 1; }
   .act-item .gramos { justify-content: flex-start; }
   .act-kcal::before { content: attr(data-l) " "; font: 400 12px/1 var(--font-body); color: var(--muted); }
+  .act-rounds { padding: 8px; }
+  .slot { gap: 6px; grid-template-columns: 18px minmax(0, 1fr) auto; }
+  .u-reps { display: none; }
 }
 
 /* ---------- Peso ---------- */

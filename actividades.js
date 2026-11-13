@@ -155,6 +155,67 @@
     a('02101', 2.3, 'Estiramiento suave', 'Flexibilidad', 'estirar estiramientos stretching')
   ];
 
+  /*
+   * Ejercicios concretos para los descansos entre rounds. El Compendio no tiene un MET para cada ejercicio
+   * (no hay «curl martillo»): cada uno toma el de su tipo en el Compendio, por su código.
+   *   02054 mancuernas o pesas, varios ejercicios 3,5 · 02052 sentadilla o peso muerto con peso 5,0
+   *   02022 calistenia moderada 3,8 · 02020 calistenia vigorosa 7,5 · 02024 abdominales y plancha 2,8
+   *   02056 peso corporal suave 3,0 · 02058 swings con kettlebell 9,8
+   */
+  function ej(nombre, codigo, grupo, claves) {
+    return { nombre: nombre, codigo: codigo, met: null, grupo: grupo, claves: claves || '' };
+  }
+  var EJERCICIOS = [
+    ej('Flexiones', '02022', 'Pecho', 'push ups pushups lagartijas'),
+    ej('Flexiones diamante', '02022', 'Pecho', 'diamond push ups triceps'),
+    ej('Flexiones con rodillas o inclinadas', '02056', 'Pecho', 'knee push ups incline'),
+    ej('Aperturas con mancuernas', '02054', 'Pecho', 'flyes floor flyes aperturas en el suelo'),
+    ej('Press de pecho con mancuernas', '02054', 'Pecho', 'floor press bench press press de banca'),
+    ej('Fondos en silla', '02022', 'Pecho', 'dips fondos triceps'),
+    ej('Remo inclinado con mancuernas', '02054', 'Espalda', 'bent over rows remo'),
+    ej('Remo a una mano', '02054', 'Espalda', 'single arm dumbbell row remo'),
+    ej('Dominadas', '02022', 'Espalda', 'pull ups chin ups barra'),
+    ej('Superman', '02056', 'Espalda', 'superman espalda baja lumbar'),
+    ej('Press de hombros con mancuernas', '02054', 'Hombros', 'shoulder press press militar'),
+    ej('Elevaciones laterales', '02054', 'Hombros', 'lateral raises'),
+    ej('Elevaciones frontales', '02054', 'Hombros', 'front raises'),
+    ej('Pájaros (aperturas invertidas)', '02054', 'Hombros', 'reverse fly rear delt'),
+    ej('Curl de bíceps', '02054', 'Brazos', 'bicep curls curl alterno alternating'),
+    ej('Curl martillo', '02054', 'Brazos', 'hammer curls'),
+    ej('Extensión de tríceps sobre la cabeza', '02054', 'Brazos', 'overhead tricep extension'),
+    ej('Patada de tríceps', '02054', 'Brazos', 'tricep kickback'),
+    ej('Sentadilla goblet', '02052', 'Piernas', 'goblet squat sentadilla con mancuerna'),
+    ej('Sentadilla sin peso', '02022', 'Piernas', 'air squats bodyweight squat'),
+    ej('Sentadilla con salto', '02020', 'Piernas', 'jump squats'),
+    ej('Peso muerto rumano', '02052', 'Piernas', 'romanian deadlift rdl'),
+    ej('Zancadas con mancuernas', '02052', 'Piernas', 'lunges estocadas'),
+    ej('Subir al cajón o silla', '02052', 'Piernas', 'step ups'),
+    ej('Puente de glúteo', '02054', 'Piernas', 'glute bridge hip thrust'),
+    ej('Elevación de talones', '02054', 'Piernas', 'calf raises pantorrillas'),
+    ej('Abdominales (crunch)', '02024', 'Abdomen', 'crunch sit ups'),
+    ej('Plancha', '02024', 'Abdomen', 'plank'),
+    ej('Giros rusos', '02024', 'Abdomen', 'russian twists'),
+    ej('Flexiones laterales con mancuerna', '02024', 'Abdomen', 'side bends'),
+    ej('Rueda abdominal (rodillo)', '02024', 'Abdomen', 'ab wheel rollout rodillo'),
+    ej('Elevación de piernas', '02024', 'Abdomen', 'leg raises'),
+    ej('Escaladores', '02020', 'Abdomen', 'mountain climbers'),
+    ej('Burpees', '02020', 'Cuerpo completo', 'burpees'),
+    ej('Saltos de tijera', '02020', 'Cuerpo completo', 'jumping jacks'),
+    ej('Thrusters con mancuernas', '02052', 'Cuerpo completo', 'thrusters sentadilla press'),
+    ej('Peso muerto con remo', '02052', 'Cuerpo completo', 'deadlift row combo'),
+    ej('Leñador con mancuerna', '02054', 'Cuerpo completo', 'woodchoppers'),
+    ej('Swing con kettlebell o mancuerna', '02058', 'Cuerpo completo', 'kettlebell swing pesa rusa')
+  ];
+
+  // Tipos para un ejercicio propio (que no está en la lista): su MET sale del código del Compendio.
+  var TIPOS_EJERCICIO = [
+    ['02054', 'Con mancuernas o pesas'],
+    ['02052', 'Pierna con peso (sentadilla, peso muerto, zancadas)'],
+    ['02022', 'Peso corporal (flexiones, dominadas)'],
+    ['02020', 'Explosivo (burpees, saltos)'],
+    ['02024', 'Abdomen y plancha']
+  ];
+
   function normal(s) {
     return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
   }
@@ -186,5 +247,12 @@
     return CATALOGO.find(function (x) { return x.codigo === codigo; }) || null;
   }
 
-  return { CATALOGO: CATALOGO, buscar: buscar, porCodigo: porCodigo, normal: normal };
+  // El MET de cada ejercicio es el de su código en el catálogo.
+  EJERCICIOS.forEach(function (x) { x.met = porCodigo(x.codigo).met; });
+  var TIPOS = TIPOS_EJERCICIO.map(function (t) { return { codigo: t[0], nombre: t[1], met: porCodigo(t[0]).met }; });
+
+  return {
+    CATALOGO: CATALOGO, EJERCICIOS: EJERCICIOS, TIPOS_EJERCICIO: TIPOS,
+    buscar: buscar, porCodigo: porCodigo, normal: normal
+  };
 });

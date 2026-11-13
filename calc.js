@@ -409,11 +409,49 @@
   }
 
   // ---------- Ejercicio de cada día ----------
-  // entreno = { palBase, dias: { lun: [{ nombre, met, minutos, nota }], ... } }
+  // entreno = { palBase, dias: { lun: [{ nombre, met, minutos, nota, rounds? }], ... } }
+  // rounds (opcional) = { n, min, descanso, ejercicios: [{ nombre, codigo, met, reps } | null, ...] }:
+  //   n rounds de `min` minutos de la actividad, cada uno seguido de un descanso de `descanso` minutos;
+  //   ejercicios[i] es lo que se hizo en el descanso i (null = descanso sin ejercicio, no suma).
 
-  /** kcal extra del ejercicio de un día: suma de (MET − 1,5) × kg × horas de cada actividad. */
+  /**
+   * Minutos y kcal extra de una actividad, con sus descansos si va por rounds. Las reps se cuentan
+   * por ejercicio, pero no cambian las kcal: el Compendio da el gasto por minuto, no por repetición.
+   */
+  function detalleActividad(x, peso) {
+    var r = x && x.rounds;
+    var minPrincipal = r ? r.n * r.min : x.minutos;
+    var kPrincipal = kcalActividad(x.met, peso, minPrincipal);
+    var slots = r && r.descanso > 0 ? (r.ejercicios || []).slice(0, r.n) : [];
+    var kDesc = 0;
+    var conEjercicio = 0;
+    var porEjercicio = [];
+    slots.forEach(function (e) {
+      if (!e) return;
+      conEjercicio += 1;
+      kDesc += kcalActividad(e.met, peso, r.descanso);
+      var t = porEjercicio.find(function (y) { return y.nombre === e.nombre; });
+      if (!t) { t = { nombre: e.nombre, descansos: 0, reps: 0, sinReps: 0 }; porEjercicio.push(t); }
+      t.descansos += 1;
+      if (esNum(e.reps)) t.reps += e.reps; else t.sinReps += 1;
+    });
+    var minDesc = r ? r.n * r.descanso : 0;
+    return {
+      minutos: minPrincipal + minDesc,
+      minPrincipal: minPrincipal,
+      minDescansos: minDesc,
+      kcalPrincipal: kPrincipal,
+      kcalDescansos: kDesc,
+      kcal: kPrincipal + kDesc,
+      descansos: r ? r.n : 0,
+      conEjercicio: conEjercicio,
+      porEjercicio: porEjercicio
+    };
+  }
+
+  /** kcal extra del ejercicio de un día: suma de (MET − 1,5) × kg × horas de cada actividad (y de sus descansos). */
   function kcalEjercicioDia(actividades, peso) {
-    return (actividades || []).reduce(function (s, x) { return s + kcalActividad(x.met, peso, x.minutos); }, 0);
+    return (actividades || []).reduce(function (s, x) { return s + detalleActividad(x, peso).kcal; }, 0);
   }
 
   /**
@@ -617,6 +655,7 @@
     kcalActividad: kcalActividad,
     sesionRounds: sesionRounds,
     sesionBloques: sesionBloques,
+    detalleActividad: detalleActividad,
     kcalEjercicioDia: kcalEjercicioDia,
     calcPerfilDia: calcPerfilDia,
     calcSemanaPerfil: calcSemanaPerfil,

@@ -224,7 +224,66 @@
       act[k] = v;
     }
     act.nota = typeof raw.nota === 'string' ? raw.nota.trim().slice(0, 80) : '';
+    if (raw.rounds != null) {
+      var r = validarRounds(raw.rounds, nombre);
+      if (!r.ok) return r;
+      act.rounds = r.rounds;
+      act.minutos = r.rounds.n * r.rounds.min; // los minutos de la actividad salen de los rounds
+    }
     return { ok: true, actividad: act };
+  }
+
+  // Por rounds: n rounds de `min` minutos, cada uno seguido de un descanso de `descanso` minutos.
+  var LIMITES_ROUNDS = {
+    n: [1, 50, 'Rounds'], min: [0.5, 20, 'Minutos por round'], descanso: [0, 10, 'Minutos de descanso']
+  };
+  var MAX_REPS = 999;
+
+  /** Lo que se hizo en un descanso: { nombre, codigo, met, reps } o null (descanso sin ejercicio). */
+  function validarEjercicioDescanso(raw) {
+    if (raw == null || raw === '') return { ok: true, ejercicio: null };
+    if (typeof raw !== 'object') return { ok: false, error: 'Un descanso no es válido.' };
+    var nombre = typeof raw.nombre === 'string' ? raw.nombre.trim().slice(0, 60) : '';
+    if (!nombre) return { ok: true, ejercicio: null };
+    var met = num(raw.met);
+    if (!isFinite(met) || met < LIMITES_ACT.met[0] || met > LIMITES_ACT.met[1]) {
+      return { ok: false, error: '«' + nombre + '»: MET debe estar entre ' + LIMITES_ACT.met[0] + ' y ' + LIMITES_ACT.met[1] + '.' };
+    }
+    var reps = null;
+    if (raw.reps != null && raw.reps !== '') {
+      reps = num(raw.reps);
+      if (!isFinite(reps) || reps < 0 || reps > MAX_REPS || Math.round(reps) !== reps) {
+        return { ok: false, error: '«' + nombre + '»: las repeticiones deben ser un número entero entre 0 y ' + MAX_REPS + '.' };
+      }
+    }
+    return {
+      ok: true,
+      ejercicio: { nombre: nombre, codigo: typeof raw.codigo === 'string' ? raw.codigo.trim().slice(0, 10) : '', met: met, reps: reps }
+    };
+  }
+
+  function validarRounds(raw, nombre) {
+    if (typeof raw !== 'object' || Array.isArray(raw)) return { ok: false, error: '«' + nombre + '»: los rounds no son válidos.' };
+    var r = {};
+    var claves = Object.keys(LIMITES_ROUNDS);
+    for (var i = 0; i < claves.length; i++) {
+      var k = claves[i];
+      var lim = LIMITES_ROUNDS[k];
+      var v = num(raw[k]);
+      if (!isFinite(v) || v < lim[0] || v > lim[1]) {
+        return { ok: false, error: '«' + nombre + '»: ' + lim[2] + ' debe estar entre ' + lim[0] + ' y ' + lim[1] + '.' };
+      }
+      r[k] = v;
+    }
+    if (Math.round(r.n) !== r.n) return { ok: false, error: '«' + nombre + '»: los rounds deben ser un número entero.' };
+    var lista = Array.isArray(raw.ejercicios) ? raw.ejercicios.slice(0, r.n) : [];
+    r.ejercicios = [];
+    for (var j = 0; j < lista.length; j++) {
+      var e = validarEjercicioDescanso(lista[j]);
+      if (!e.ok) return e;
+      r.ejercicios.push(e.ejercicio);
+    }
+    return { ok: true, rounds: r };
   }
 
   /**
@@ -557,7 +616,11 @@
     idSeguro: idSeguro,
     PAL_BASE: PAL_BASE,
     LIMITES_ACT: LIMITES_ACT,
+    LIMITES_ROUNDS: LIMITES_ROUNDS,
+    MAX_REPS: MAX_REPS,
     validarActividad: validarActividad,
+    validarEjercicioDescanso: validarEjercicioDescanso,
+    validarRounds: validarRounds,
     validarEntreno: validarEntreno,
     cfgAActividades: cfgAActividades,
     semanalADias: semanalADias,
