@@ -64,8 +64,9 @@
   <div class="perfil-grid" id="perfil-grid">
     <!-- Resultados -->
     <section class="results" aria-labelledby="res-title" aria-live="polite">
+      <div class="semana res-semana" id="res-semana" role="group" aria-label="Día de la semana" hidden></div>
       <div class="card hero">
-        <p class="eyebrow" id="res-title">Objetivo diario · <span id="res-nombre">—</span></p>
+        <p class="eyebrow" id="res-title"><span id="res-cuando">Objetivo diario</span> · <span id="res-nombre">—</span></p>
         <p class="hero-kcal"><span id="res-objetivo">—</span><span class="unit">kcal</span></p>
         <p class="hero-sub" id="res-sub">—</p>
 
@@ -144,14 +145,28 @@
         </div>
       </div>
 
-      <div class="field">
+      <fieldset class="field">
+        <legend>Gasto de cada día</legend>
+        <div class="seg-control">
+          <input type="radio" id="f-gasto-factor" name="modoGasto" value="factor"><label for="f-gasto-factor">Factor fijo</label>
+          <input type="radio" id="f-gasto-ejercicio" name="modoGasto" value="ejercicio"><label for="f-gasto-ejercicio">Según mi ejercicio</label>
+        </div>
+      </fieldset>
+
+      <div class="field" id="campo-factor">
         <label for="f-factor">Nivel de actividad</label>
         <select id="f-factor" name="factor"></select>
         <div class="field-inline" id="factor-custom-wrap" hidden>
           <label for="f-factor-custom">Factor</label>
           <input id="f-factor-custom" name="factorCustom" type="text" inputmode="decimal" placeholder="1,6">
         </div>
-        <p class="hint">En la pestaña Entreno lo calculas con tus ejercicios y lo pasas aquí con un botón.</p>
+        <p class="hint">El mismo gasto todos los días. Para que cada día cuente su propio ejercicio, elige «Según mi ejercicio».</p>
+      </div>
+
+      <div class="field" id="campo-pal" hidden>
+        <label for="f-pal">El resto de tu día, sin contar el ejercicio</label>
+        <select id="f-pal"></select>
+        <p class="hint">El ejercicio de cada día se anota en la pestaña Entreno. Los días sin ejercicio (descanso) usan solo esta base.</p>
       </div>
 
       <fieldset class="field">
@@ -501,9 +516,11 @@
     <div class="empty-actions"><a class="btn btn-primary" href="#perfil">Ir a Perfil</a></div>
   </div>
 
+  <div class="semana" id="ent-semana" role="group" aria-label="Día de la semana"></div>
+
   <div class="ent-grid" id="ent-grid">
     <section class="card sem-card ent-lista-card" aria-labelledby="act-title">
-      <h2 class="card-title" id="act-title">Tu ejercicio de la semana</h2>
+      <h2 class="card-title" id="act-title">Ejercicio del día</h2>
       <div class="buscador">
         <label class="lbl" for="act-buscar">Agregar ejercicio o actividad</label>
         <input id="act-buscar" type="search" placeholder="Kickboxing, caminar, flexiones, fútbol…" autocomplete="off"
@@ -511,14 +528,22 @@
         <ul class="sugerencias" id="act-sug" role="listbox" hidden></ul>
       </div>
       <div class="act-head" aria-hidden="true">
-        <span>Actividad</span><span>Min por vez</span><span>Veces/sem</span><span>kcal/sem</span><span></span>
+        <span>Actividad</span><span>Minutos</span><span>kcal</span><span></span>
       </div>
       <ul class="act-lista" id="act-lista"></ul>
-      <p class="hint" id="act-vacio" hidden>Escribe arriba lo que haces (por ejemplo «caminar», «pesas» o «fútbol»), elige la opción que más se parezca y anota cuántos minutos y cuántas veces por semana.</p>
-      <div class="field">
-        <label for="e-palBase">El resto de tu día, sin contar el ejercicio</label>
-        <select id="e-palBase"></select>
+      <p class="hint" id="act-vacio" hidden>Día de descanso: sin ejercicio, su objetivo usa solo el gasto base. Si ese día haces algo, búscalo arriba y anota los minutos.</p>
+
+      <div class="ent-copiar">
+        <p class="lbl" id="ent-copiar-titulo">Copiar este día a</p>
+        <div class="dias-toggle" id="ent-destinos" role="group" aria-labelledby="ent-copiar-titulo"></div>
+        <div class="presets" id="ent-presets">
+          <button type="button" class="chip" data-sel="lab">Lun–Vie</button>
+          <button type="button" class="chip" data-sel="todos">Toda la semana</button>
+          <button type="button" class="chip" data-sel="ninguno">Ninguno</button>
+        </div>
+        <div class="sem-copiar-pie" id="ent-copiar-pie"></div>
       </div>
+
       <div class="foot-actions">
         <button type="button" class="btn" id="btn-ent-import">Importar</button>
         <button type="button" class="btn" id="btn-ent-export">Exportar ejercicio</button>
@@ -526,10 +551,14 @@
     </section>
 
     <section class="card sem-card" aria-labelledby="gasto-title">
-      <h2 class="card-title" id="gasto-title">Lo que suma al día</h2>
+      <h2 class="card-title" id="gasto-title">Lo que suma el día</h2>
       <div class="cifras" id="ent-cifras"></div>
-      <div id="ent-factor"></div>
-      <p class="hint">Cada actividad suma (MET − 1,5) × kg × horas por vez: lo que gastas de más frente a estar sentado. Los MET son del Compendio de Actividades Físicas 2024; el código de cada uno aparece junto al nombre. Si algo no está en la lista, agrégalo como actividad propia y elige su intensidad.</p>
+      <div id="ent-modo"></div>
+      <div class="field">
+        <label for="e-palBase">El resto de tu día, sin contar el ejercicio</label>
+        <select id="e-palBase"></select>
+      </div>
+      <p class="hint">Cada actividad suma (MET − 1,5) × kg × horas: lo que gastas de más frente a estar sentado. Los MET son del Compendio de Actividades Físicas 2024; el código de cada uno aparece junto al nombre. Si algo no está en la lista, agrégalo como actividad propia y elige su intensidad.</p>
     </section>
   </div>
 </section>

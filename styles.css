@@ -358,9 +358,14 @@ input[type="search"] {
   display: grid; gap: 2px; justify-items: center; padding: 8px 2px; border: 1px solid var(--line); border-radius: 8px;
   background: var(--surface); cursor: pointer; font-variant-numeric: tabular-nums;
 }
-.dia-chip span { font: 600 15px/1 var(--font-display); text-transform: uppercase; letter-spacing: 0.05em; }
-.dia-chip small { font-size: 11px; color: var(--muted); }
-.dia-chip.es-hoy span::after { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-left: 4px; vertical-align: middle; }
+.dia-chip > span { font: 600 15px/1 var(--font-display); text-transform: uppercase; letter-spacing: 0.05em; }
+.dia-chip small { font-size: 11px; color: var(--muted); white-space: nowrap; }
+.dia-chip .ch-corto { display: none; }
+@media (max-width: 400px) {
+  .dia-chip .ch-largo { display: none; }
+  .dia-chip .ch-corto { display: inline; }
+}
+.dia-chip.es-hoy > span::after { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-left: 4px; vertical-align: middle; }
 .dia-chip[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 .dia-chip[aria-pressed="true"] small { color: inherit; opacity: 0.8; }
 
@@ -513,8 +518,13 @@ input[type="search"] {
 @media (min-width: 900px) {
   .ent-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
 }
-.ent-grid { --act-cols: minmax(0, 1fr) 92px 76px 64px 32px; }
-.act-head, .act-item { display: grid; grid-template-columns: var(--act-cols); gap: 8px; align-items: center; }
+.ent-grid { --act-cols: minmax(0, 1fr) 92px 64px 32px; }
+#ent-semana, .res-semana { margin: 0; }
+.act-item .gramos, .act-item .act-kcal, .act-item .quitar { margin-top: 2px; }
+.act-nota { width: 100%; min-height: 32px; padding: 4px 8px; margin-top: 4px; font-size: 13px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); }
+.ent-copiar { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line); }
+.ent-copiar .lbl { margin: 0; font-weight: 600; font-size: 14px; }
+.act-head, .act-item { display: grid; grid-template-columns: var(--act-cols); gap: 8px; align-items: start; }
 .act-head { padding: 0 4px; font: 600 12px/1.2 var(--font-body); text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
 .act-head span:nth-child(n+2) { text-align: right; }
 .act-lista { list-style: none; margin: 0; padding: 0; display: grid; }
@@ -530,7 +540,7 @@ input[type="search"] {
 .act-kcal { text-align: right; font: 700 18px/1 var(--font-display); }
 @media (max-width: 620px) {
   .act-head { display: none; }
-  .act-item { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) 32px; row-gap: 6px; }
+  .act-item { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 32px; row-gap: 6px; }
   .act-item .act-nombre { grid-column: 1 / -2; grid-row: 1; }
   .act-item .quitar { grid-column: -2 / -1; grid-row: 1; }
   .act-item .gramos { justify-content: flex-start; }

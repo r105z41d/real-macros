@@ -58,43 +58,74 @@
     return '<td class="vs est-' + estado + '">' + (dif >= 0 ? '+' : '−') + A.fmt(Math.abs(dif), 0) + '</td>';
   }
 
+  /** Promedio de los objetivos de esos días (null si alguno no se puede calcular). */
+  function promedioObj(dias, objD) {
+    var o = { kcal: 0, prot: 0, grasa: 0, carbs: 0 };
+    for (var i = 0; i < dias.length; i++) {
+      var x = objD[dias[i]];
+      if (!x) return null;
+      Object.keys(o).forEach(function (k) { o[k] += x[k] / dias.length; });
+    }
+    return o;
+  }
+
   function renderTabla(p, ix) {
-    var r = C.calcPerfil(p);
-    var obj = C.objetivoDia(r);
+    var porDia = p.modo === 'ejercicio';
+    var sem = A.calcSemana(p); // el cálculo de cada día (igual todos con factor fijo)
+    var valido = sem.porDia[HOY].valido;
+    var objD = {};
+    D.DIAS.forEach(function (d) { objD[d] = C.objetivoDia(sem.porDia[d]); });
     var t = C.totalesSemana(semanaDe(p.id), ix.al, ix.rec);
+    var conPlan = D.DIAS.filter(function (d) { return t.porDia[d].lineas; });
     $('sem-filas').innerHTML = D.DIAS.map(function (d) {
       var pd = t.porDia[d];
       var cab = '<th scope="row"><button type="button" class="link-dia" data-dia="' + d + '" aria-label="Abrir el ' + LARGO[d].toLowerCase() + '">' +
         '<span class="d-largo">' + LARGO[d] + '</span><span class="d-corto" aria-hidden="true">' + CORTO[d] + '</span></button>' +
         (d === HOY ? ' <small class="hoy">hoy</small>' : '') + '</th>';
-      if (!pd.lineas) return '<tr class="sin-plan">' + cab + '<td colspan="5">Sin plan</td></tr>';
-      return '<tr>' + cab + celdas(pd.total, 0) + celdaVs(pd.total.kcal, obj) + '</tr>';
+      if (!pd.lineas) {
+        return '<tr class="sin-plan">' + cab + '<td colspan="5">Sin plan' +
+          (porDia && objD[d] ? ' · objetivo ' + A.fmt(objD[d].kcal, 0) + ' kcal' : '') + '</td></tr>';
+      }
+      return '<tr>' + cab + celdas(pd.total, 0) + celdaVs(pd.total.kcal, objD[d]) + '</tr>';
     }).join('');
 
+    // El promedio se compara con el objetivo promedio de esos mismos días.
+    var diasObj = conPlan.length ? conPlan : D.DIAS;
+    var objProm = valido ? promedioObj(diasObj, objD) : null;
     var pie = '';
     if (t.promedio) {
       pie += '<tr><th scope="row">Promedio <small>(' + t.diasConPlan + (t.diasConPlan === 1 ? ' día' : ' días') + ')</small></th>' +
-        celdas(t.promedio, 0) + celdaVs(t.promedio.kcal, obj) + '</tr>';
+        celdas(t.promedio, 0) + celdaVs(t.promedio.kcal, objProm) + '</tr>';
       pie += '<tr><th scope="row">Total</th>' + celdas(t.total, 0) + '<td></td></tr>';
     }
-    if (obj) {
-      pie += '<tr class="fila-obj"><th scope="row">Objetivo diario</th>' + celdas(obj, 0) + '<td></td></tr>';
+    if (objProm) {
+      var n = diasObj.length;
+      var etiqueta = !porDia ? 'Objetivo diario'
+        : 'Objetivo promedio <small>(' + (n === 7 ? 'semana' : n + (n === 1 ? ' día' : ' días')) + ')</small>';
+      pie += '<tr class="fila-obj"><th scope="row">' + etiqueta + '</th>' + celdas(objProm, 0) + '<td></td></tr>';
     }
     $('sem-pie').innerHTML = pie;
 
     var ritmo = $('sem-ritmo');
-    if (!t.promedio || !r.valido) {
-      ritmo.textContent = r.valido ? 'Planea al menos un día para ver el promedio.' : 'Completa el perfil para comparar con su objetivo.';
+    if (!t.promedio || !valido) {
+      ritmo.textContent = valido ? 'Planea al menos un día para ver el promedio.' : 'Completa el perfil para comparar con su objetivo.';
       return;
     }
-    var rs = C.ritmoSemanal(t.promedio.kcal - r.tdee, p.peso);
+    // Balance de cada día planeado = lo que comes − lo que gastas ese día; su promedio se lleva a la semana.
+    var balance = conPlan.reduce(function (s, d) { return s + t.porDia[d].total.kcal - sem.porDia[d].tdee; }, 0) / conPlan.length;
+    var rs = C.ritmoSemanal(balance, p.peso);
     var pct = Math.abs(rs.pct);
     var guia = rs.kg >= 0 ? '' : pct > 1 ? ' Es más rápido que el 1 % por semana: más riesgo de perder músculo.'
       : pct >= 0.5 ? ' Está dentro del 0,5–1 % por semana que recomienda la guía.'
         : ' Es más lento que el 0,5 % por semana: conservador.';
-    ritmo.innerHTML = 'Si todos los días comes como el promedio, ' +
+    var inicio = !porDia ? 'Si todos los días comes como el promedio, '
+      : conPlan.length < 7 ? 'Con lo planeado y el gasto de cada día (los días sin plan cuentan como el promedio), '
+        : 'Con lo planeado y el gasto de cada día, ';
+    var cierre = !porDia ? ', frente a un mantenimiento de ' + A.fmt(sem.porDia[HOY].tdee, 0) + ' kcal.'
+      : ', con un balance promedio de ' + (balance < 0 ? '−' : '+') + A.fmt(Math.abs(balance), 0) + ' kcal al día.';
+    ritmo.innerHTML = inicio +
       (Math.abs(rs.kg) < 0.005 ? 'mantendrías el peso' : (rs.kg < 0 ? 'bajarías ' : 'subirías ') + '<b>' + A.fmtUp(Math.abs(rs.kg), 2) + ' kg por semana</b> (' + A.fmtUp(pct, 2) + ' % de tu peso)') +
-      ', frente a un mantenimiento de ' + A.fmt(r.tdee, 0) + ' kcal.' + esc(guia);
+      cierre + esc(guia);
   }
 
   // ---------- Copiar un día ----------

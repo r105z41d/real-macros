@@ -84,21 +84,35 @@
   function calibracion(p, t) {
     var s = A.getState();
     var semana = C.totalesSemana(s.dias[p.id] || {}, C.indexar(s.alimentos), C.indexar(s.recetas));
-    var r = C.calcPerfil(p);
     if (!semana.promedio) {
       return '<p class="hint">Planea tus días en la pestaña Semana: el mantenimiento real se calcula con lo que comes en promedio.</p>';
     }
-    if (!r.valido) return '<p class="hint">Completa el perfil para comparar con su factor.</p>';
+    // Con «según mi ejercicio» el gasto cambia cada día: se compara con el promedio de la semana.
+    var porDia = p.modo === 'ejercicio';
+    var sem = A.calcSemana(p);
+    var r = sem.porDia.lun;
+    if (!r.valido || !sem.promedio) return '<p class="hint">Completa el perfil para comparar con su gasto.</p>';
+    var gasto = porDia ? sem.promedio.tdee : r.tdee;
     var real = C.tdeeReal(semana.promedio.kcal, t.kgSemana);
     var factor = real / r.tmb;
+    // El ejercicio anotado se deja igual: lo que se ajusta es la base del resto del día.
+    var pal = (real - (porDia ? sem.promedio.kcalEjercicio : 0)) / r.tmb;
+    var dif = Math.abs(real - gasto) >= 50;
     var html = '<div class="comparar">' +
       '<p>Comiendo en promedio <b>' + A.fmt(semana.promedio.kcal, 0) + ' kcal</b> (tu plan de la semana, ' + semana.diasConPlan +
       (semana.diasConPlan === 1 ? ' día' : ' días') + ') y con una tendencia de <b>' + (t.kgSemana < 0 ? '−' : '+') + A.fmtUp(Math.abs(t.kgSemana), 2) +
-      ' kg por semana</b>, tu mantenimiento real es de unas <b>' + A.fmt(real, 0) + ' kcal</b>, o sea un factor de <b>×' + A.fmtUp(factor, 3) + '</b>.</p>' +
-      '<p>Tu perfil usa ×' + A.fmtUp(p.factor, 3) + ' (' + A.fmt(r.tdee, 0) + ' kcal): ' +
-      (Math.abs(real - r.tdee) < 50 ? 'coinciden.' : real < r.tdee ? 'gastas unas ' + A.fmt(r.tdee - real, 0) + ' kcal menos de lo que dice el perfil.' : 'gastas unas ' + A.fmt(real - r.tdee, 0) + ' kcal más de lo que dice el perfil.') + '</p>';
-    if (Math.abs(real - r.tdee) >= 50 && factor >= 1 && factor <= 2.5) {
+      ' kg por semana</b>, tu mantenimiento real es de unas <b>' + A.fmt(real, 0) + ' kcal</b>' +
+      (porDia ? '.</p>' : ', o sea un factor de <b>×' + A.fmtUp(factor, 3) + '</b>.</p>') +
+      '<p>' + (porDia
+        ? 'Tu perfil calcula en promedio ' + A.fmt(gasto, 0) + ' kcal al día (base ×' + A.fmtUp(A.entrenoDe(p).palBase, 2) + ' + tu ejercicio): '
+        : 'Tu perfil usa ×' + A.fmtUp(p.factor, 3) + ' (' + A.fmt(gasto, 0) + ' kcal): ') +
+      (!dif ? 'coinciden.' : real < gasto ? 'gastas unas ' + A.fmt(gasto - real, 0) + ' kcal menos de lo que dice el perfil.' : 'gastas unas ' + A.fmt(real - gasto, 0) + ' kcal más de lo que dice el perfil.') + '</p>';
+    if (dif && !porDia && factor >= 1 && factor <= 2.5) {
       html += '<button type="button" class="btn" id="btn-usar-real" data-factor="' + (Math.round(factor * 1000) / 1000) + '">Usar ×' + A.fmtUp(factor, 3) + ' en el perfil</button>';
+    } else if (dif && porDia && pal >= 1.2 && pal <= 2.2) {
+      html += '<button type="button" class="btn" id="btn-usar-pal" data-pal="' + (Math.round(pal * 100) / 100) + '">Usar base ×' + A.fmtUp(pal, 2) + ' para el resto del día</button>';
+    } else if (dif && porDia) {
+      html += '<p class="hint">La diferencia es más grande de lo que explica el resto del día: revisa los minutos del ejercicio en Entreno o si comiste distinto a lo planeado.</p>';
     }
     return html + '<p class="hint">Supone que comiste lo planeado. Si comiste distinto, el resultado cambia. Con más semanas de datos, más confiable.</p></div>';
   }
@@ -163,6 +177,17 @@
     if (e.target.id === 'btn-usar-real') {
       cambios = { factor: parseFloat(e.target.dataset.factor) };
       texto = 'El perfil «' + p.nombre + '» ahora usa ×' + A.fmtUp(cambios.factor, 3) + '.';
+    } else if (e.target.id === 'btn-usar-pal') {
+      var ent = A.entrenoDe(p);
+      deshacer = { tipo: 'pal', pid: p.id, antes: ent.palBase };
+      ent.palBase = parseFloat(e.target.dataset.pal);
+      A.persist();
+      render();
+      var aviso = $('peso-status');
+      aviso.className = 'bar-status is-ok';
+      aviso.innerHTML = '<span>' + esc('El perfil «' + p.nombre + '» ahora usa base ×' + A.fmtUp(ent.palBase, 2) + ' para el resto del día.') +
+        ' <button type="button" class="link-btn" id="btn-peso-deshacer">Deshacer</button></span>';
+      return;
     } else if (e.target.id === 'btn-usar-peso') {
       cambios = { peso: parseFloat(e.target.dataset.kg) };
       texto = 'El perfil «' + p.nombre + '» ahora pesa ' + A.fmtUp(cambios.peso, 1) + ' kg.';
@@ -178,6 +203,7 @@
   $('peso-status').addEventListener('click', function (e) {
     if (e.target.id !== 'btn-peso-deshacer' || !deshacer) return;
     if (deshacer.tipo === 'perfil') A.cambiarPerfil(deshacer.pid, deshacer.antes);
+    else if (deshacer.tipo === 'pal') A.getState().entreno[deshacer.pid].palBase = deshacer.antes;
     else A.getState().pesos[deshacer.pid] = D.ponerPeso(A.getState().pesos[deshacer.pid] || [], deshacer.registro);
     A.persist();
     deshacer = null;

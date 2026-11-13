@@ -94,7 +94,8 @@
   }
 
   function renderResumen(p, ix) {
-    var obj = C.objetivoDia(C.calcPerfil(p));
+    var r = A.calcDia(p, dia); // con su ejercicio si el perfil calcula día por día
+    var obj = C.objetivoDia(r);
     var t = C.totalDia(plan(p), ix.al, ix.rec);
     $('dia-resumen-title').textContent = LARGO[dia] + (dia === HOY ? ' (hoy)' : '') + ' · ' + (p.nombre || 'Sin nombre');
     if (!obj) {
@@ -123,9 +124,16 @@
         '<div class="m-bar" role="img" aria-label="' + Math.round(pct * 100) + ' % del objetivo"><span style="width:' + Math.min(100, pct * 100).toFixed(1) + '%"></span></div>' +
         '<p class="m-dif">' + texto + '</p></div>';
     }).join('');
-    $('dia-resumen-nota').textContent = t.faltan.length
+    var nota = t.faltan.length
       ? t.faltan.length + ' línea(s) ya no tienen alimento o receta y suman 0.'
       : 'Diferencia = objetivo − total, como en tu hoja «Objetivo».';
+    if (r.modo === 'ejercicio') {
+      var nombreDia = LARGO[dia].toLowerCase();
+      nota = (r.kcalEjercicio > 0
+        ? 'El objetivo del ' + nombreDia + ' incluye ' + A.fmt(r.kcalEjercicio, 0) + ' kcal de su ejercicio.'
+        : 'El ' + nombreDia + ' no tiene ejercicio: su objetivo usa solo el gasto base.') + ' ' + nota;
+    }
+    $('dia-resumen-nota').textContent = nota;
   }
 
   /** Tras cambiar gramos: actualiza esa fila, el resumen y la semana sin redibujar la lista (no pierde el foco). */

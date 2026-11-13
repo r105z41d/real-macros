@@ -60,7 +60,7 @@
   /** Perfil nuevo: medidas vacías para que la persona las llene; el resto con valores de partida. */
   function perfilNuevo() {
     return {
-      id: nuevoId(), nombre: '', sexo: 'h', peso: null, altura: null, edad: null,
+      id: nuevoId(), nombre: '', sexo: 'h', modo: 'factor', peso: null, altura: null, edad: null,
       factor: POR_DEFECTO.factor, ajuste: POR_DEFECTO.ajuste, protGkg: POR_DEFECTO.protGkg, grasaPct: POR_DEFECTO.grasaPct
     };
   }
@@ -79,7 +79,8 @@
     var sexo = raw.sexo === 'm' || raw.sexo === 'h' ? raw.sexo : null;
     if (!sexo) return { ok: false, error: '«' + nombre + '»: el sexo debe ser "h" (hombre) o "m" (mujer).' };
 
-    var p = { id: idOGenerar(raw.id), nombre: nombre, sexo: sexo };
+    // modo: 'factor' = gasto fijo (TMB × factor); 'ejercicio' = cada día con su ejercicio (pestaña Entreno).
+    var p = { id: idOGenerar(raw.id), nombre: nombre, sexo: sexo, modo: raw.modo === 'ejercicio' ? 'ejercicio' : 'factor' };
     var campos = Object.keys(LIMITES);
     for (var i = 0; i < campos.length; i++) {
       var k = campos[i];
@@ -193,15 +194,16 @@
     };
   }
 
-  // ---------- Entreno: lista de actividades ----------
-  // entreno[idPerfil] = { palBase, actividades: [{ id, nombre, codigo, met, minutos, veces }] }
-  //   minutos = por sesión; veces = sesiones por semana; codigo = código del Compendio ('' si es propia).
+  // ---------- Entreno: el ejercicio de cada día ----------
+  // entreno[idPerfil] = { palBase, dias: { lun: [{ id, nombre, codigo, met, minutos, nota }], ..., dom: [...] } }
+  //   minutos = de ese día; nota = detalle libre («11 rounds de 3 min»); codigo = del Compendio ('' si es propia).
+  //   palBase = cómo es el resto del día sin contar el ejercicio (FAO: oficina ≈ 1,55).
   var PAL_BASE = 1.55;
   var LIMITES_ACT = {
-    met: [1, 25, 'MET'], minutos: [0, 600, 'Minutos por sesión'], veces: [0, 14, 'Veces por semana']
+    met: [1, 25, 'MET'], minutos: [0, 600, 'Minutos']
   };
 
-  /** Actividad de la lista. */
+  /** Una actividad de un día. */
   function validarActividad(raw) {
     if (!raw || typeof raw !== 'object') return { ok: false, error: 'Actividad inválida.' };
     var nombre = typeof raw.nombre === 'string' ? raw.nombre.trim().slice(0, 80) : '';
@@ -221,6 +223,7 @@
       }
       act[k] = v;
     }
+    act.nota = typeof raw.nota === 'string' ? raw.nota.trim().slice(0, 80) : '';
     return { ok: true, actividad: act };
   }
 
@@ -259,28 +262,60 @@
   }
 
   /**
-   * Revisa el entreno de un perfil, en el formato nuevo o en el viejo (que convierte).
-   * Devuelve { ok: true, entreno, errores[] } (actividades inválidas se omiten y se informan) o { ok: false, error }.
+   * Formato semanal (versión anterior): actividades con «veces por semana». Cada una se pone en los
+   * primeros días de la semana según sus veces (5 veces → lunes a viernes; 2 → lunes y martes).
+   */
+  function semanalADias(actividades) {
+    var dias = {};
+    DIAS.forEach(function (d) { dias[d] = []; });
+    (actividades || []).forEach(function (x) {
+      var veces = Math.max(0, Math.min(7, Math.round(num(x && x.veces))));
+      for (var i = 0; i < veces; i++) {
+        dias[DIAS[i]].push({ id: nuevoId(), nombre: x.nombre, codigo: x.codigo, met: x.met, minutos: x.minutos, nota: x.nota });
+      }
+    });
+    return dias;
+  }
+
+  /**
+   * Revisa el entreno de un perfil en el formato actual (por día) o en uno anterior (semanal o
+   * sesión fija), que convierte. Devuelve { ok: true, entreno: { palBase, dias }, errores[] } o { ok: false, error }.
    */
   function validarEntreno(raw) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ok: false, error: 'El entreno no es válido.' };
-    var base = Array.isArray(raw.actividades) ? raw : raw.cfg ? cfgAActividades(raw.cfg) : { actividades: [] };
-    var pal = num(base.palBase === undefined ? raw.palBase : base.palBase);
+    var palRaw = raw.palBase;
+    var diasRaw;
+    if (raw.dias && typeof raw.dias === 'object' && !Array.isArray(raw.dias)) {
+      diasRaw = raw.dias;
+    } else if (Array.isArray(raw.actividades)) {
+      diasRaw = semanalADias(raw.actividades);
+    } else if (raw.cfg) {
+      var conv = cfgAActividades(raw.cfg);
+      diasRaw = semanalADias(conv.actividades);
+      if (palRaw === undefined) palRaw = conv.palBase;
+    } else {
+      diasRaw = {};
+    }
+    var pal = num(palRaw);
     if (!isFinite(pal)) pal = PAL_BASE;
     if (pal < 1.2 || pal > 2.2) return { ok: false, error: 'El nivel del resto del día debe estar entre 1,2 y 2,2.' };
     var errores = [];
-    var actividades = [];
-    base.actividades.forEach(function (x) {
-      var v = validarActividad(x);
-      if (v.ok) actividades.push(v.actividad); else errores.push(v.error);
+    var dias = {};
+    DIAS.forEach(function (d) {
+      dias[d] = [];
+      var lista = Object.prototype.hasOwnProperty.call(diasRaw, d) && Array.isArray(diasRaw[d]) ? diasRaw[d] : [];
+      lista.forEach(function (x) {
+        var v = validarActividad(x);
+        if (v.ok) dias[d].push(v.actividad); else errores.push(v.error);
+      });
     });
-    return { ok: true, entreno: { palBase: pal, actividades: actividades }, errores: errores };
+    return { ok: true, entreno: { palBase: pal, dias: dias }, errores: errores };
   }
 
   /** Lleva un entreno guardado al formato actual (para datos de versiones anteriores). */
   function migrarEntreno(e) {
-    var v = validarEntreno(e);
-    return v.ok ? v.entreno : { palBase: PAL_BASE, actividades: [] };
+    var v = validarEntreno(e || {});
+    return v.ok ? v.entreno : validarEntreno({}).entreno;
   }
 
   /** Registro de peso: { fecha: 'AAAA-MM-DD', kg }. */
@@ -320,7 +355,9 @@
     dest.forEach(function (d) {
       if (nueva[d] && nueva[d].length) reemplazados.push(d);
       nueva[d] = lineas.map(function (it) {
-        return { id: nuevoId(), tipo: it.tipo, ref: it.ref, gramos: it.gramos };
+        var copia = clonar(it);
+        copia.id = nuevoId();
+        return copia;
       });
     });
     return { semana: nueva, reemplazados: reemplazados };
@@ -416,7 +453,7 @@
     return perfil;
   }
 
-  /** entreno = { idPerfil: { palBase, actividades: [...] } } (o el formato viejo, que se convierte). Reemplaza el del perfil. */
+  /** entreno = { idPerfil: { palBase, dias: { lun: [...], ... } } } (o un formato anterior, que se convierte). Reemplaza el del perfil. */
   function importarEntreno(res, entreno) {
     Object.keys(entreno).forEach(function (pid) {
       var perfil = perfilDe(res, pid, 'un entreno');
@@ -425,8 +462,8 @@
       if (!v.ok) { res.errores.push(perfil.nombre + ': ' + v.error); return; }
       v.errores.forEach(function (e) { res.errores.push(perfil.nombre + ': ' + e); });
       res.state.entreno[pid] = v.entreno;
-      var n = v.entreno.actividades.length;
-      res.entreno.push(perfil.nombre + ' (' + n + (n === 1 ? ' actividad' : ' actividades') + ')');
+      var n = DIAS.filter(function (d) { return v.entreno.dias[d].length; }).length;
+      res.entreno.push(perfil.nombre + ' (' + n + (n === 1 ? ' día' : ' días') + ' con ejercicio)');
     });
   }
 
@@ -523,6 +560,7 @@
     validarActividad: validarActividad,
     validarEntreno: validarEntreno,
     cfgAActividades: cfgAActividades,
+    semanalADias: semanalADias,
     migrarEntreno: migrarEntreno,
     validarPeso: validarPeso,
     ponerPeso: ponerPeso,

@@ -42,9 +42,9 @@
     ['dias', 'entreno', 'pesos'].forEach(function (k) {
       if (!s[k] || typeof s[k] !== 'object' || Array.isArray(s[k])) s[k] = {};
     });
-    // Entreno guardado con la sesión fija y el temporizador de antes → lista de actividades con el mismo gasto.
+    // Entreno guardado en un formato anterior (sesión fija o semanal) → ejercicio por día con el mismo gasto.
     Object.keys(s.entreno).forEach(function (pid) {
-      if (!Array.isArray(s.entreno[pid] && s.entreno[pid].actividades)) s.entreno[pid] = D.migrarEntreno(s.entreno[pid]);
+      if (!(s.entreno[pid] && s.entreno[pid].dias)) s.entreno[pid] = D.migrarEntreno(s.entreno[pid]);
     });
     if (!s.perfiles.some(function (p) { return p.id === s.activo; })) {
       s.activo = s.perfiles.length ? s.perfiles[0].id : null;
@@ -59,6 +59,35 @@
   // Variante de la app: 'pwa' (REAL MACROS instalable, config.js la define), o la de siempre (claude.ai o archivo local).
   var CONFIG = window.APP_CONFIG || {};
   var ES_PWA = CONFIG.plataforma === 'pwa';
+
+  // ---------- Cálculo de cada día ----------
+  var DIAS = D.DIAS;
+  var CORTO = { lun: 'Lun', mar: 'Mar', mie: 'Mié', jue: 'Jue', vie: 'Vie', sab: 'Sáb', dom: 'Dom' };
+  var LARGO = { lun: 'lunes', mar: 'martes', mie: 'miércoles', jue: 'jueves', vie: 'viernes', sab: 'sábado', dom: 'domingo' };
+  var HOY = DIAS[(new Date().getDay() + 6) % 7]; // getDay(): 0 = domingo
+  // Cómo es el resto del día sin contar el ejercicio (FAO: un oficinista ronda 1,55).
+  var PAL = [
+    [1.4, 'Casi todo el día sentado, pocos pasos (≈1,40)'],
+    [1.55, 'Normal: oficina o estudio, caminas algo (≈1,55)'],
+    [1.7, 'De pie o caminando gran parte del día (≈1,70)']
+  ];
+  var diaPerfil = HOY; // día que muestra Perfil en modo «según mi ejercicio»
+
+  /** El ejercicio del perfil, siempre en el formato por días. */
+  function entrenoDe(p) {
+    if (!state.entreno[p.id] || !state.entreno[p.id].dias) state.entreno[p.id] = D.migrarEntreno(state.entreno[p.id]);
+    return state.entreno[p.id];
+  }
+  /** El perfil calculado para un día: con su ejercicio en modo «ejercicio», o el de siempre con factor fijo. */
+  function calcDia(p, d) { return C.calcPerfilDia(p, entrenoDe(p), d); }
+  function calcSemana(p) { return C.calcSemanaPerfil(p, entrenoDe(p)); }
+  function opcionesPal(actual) {
+    var ops = PAL.slice();
+    if (!ops.some(function (o) { return o[0] === actual; })) ops.push([actual, 'Otro: ≈' + fmtUp(actual, 2)]);
+    return ops.map(function (o) {
+      return '<option value="' + o[0] + '"' + (o[0] === actual ? ' selected' : '') + '>' + esc(o[1]) + '</option>';
+    }).join('');
+  }
 
   var localOk = true;
   function persist() {
@@ -354,6 +383,9 @@
     selFactor.value = enLista ? String(p.factor) : 'otro';
     $('f-factor-custom').value = enLista ? '' : fmtIn(p.factor, 3);
     $('factor-custom-wrap').hidden = enLista;
+    setRadio('modoGasto', p.modo === 'ejercicio' ? 'ejercicio' : 'factor');
+    $('f-pal').innerHTML = opcionesPal(entrenoDe(p).palBase);
+    mostrarCamposGasto();
 
     var modo = p.ajuste < 0 ? 'deficit' : p.ajuste > 0 ? 'superavit' : 'mantener';
     setRadio('modo', modo);
@@ -400,6 +432,7 @@
     return {
       nombre: $('f-nombre').value.trim(),
       sexo: getRadio('sexo') === 'm' ? 'm' : 'h',
+      modo: getRadio('modoGasto') === 'ejercicio' ? 'ejercicio' : 'factor',
       peso: num('f-peso', enRango('peso')),
       altura: num('f-altura', enRango('altura')),
       edad: num('f-edad', enRango('edad')),
@@ -443,6 +476,10 @@
         $('f-factor-custom').focus();
       }
     }
+    if (e.target.name === 'modoGasto') mostrarCamposGasto();
+    if (e.target.id === 'f-pal' && activo()) {
+      entrenoDe(activo()).palBase = parseFloat($('f-pal').value);
+    }
     if (e.target.name === 'modo') {
       var mant = getRadio('modo') === 'mantener';
       $('f-ajuste').disabled = mant;
@@ -451,6 +488,19 @@
     guardarBorrador(actualizar());
   });
   form.addEventListener('submit', function (e) { e.preventDefault(); });
+
+  function mostrarCamposGasto() {
+    var ejercicio = getRadio('modoGasto') === 'ejercicio';
+    $('campo-factor').hidden = ejercicio;
+    $('campo-pal').hidden = !ejercicio;
+  }
+
+  $('res-semana').addEventListener('click', function (e) {
+    var b = e.target.closest('.dia-chip');
+    if (!b) return;
+    diaPerfil = b.dataset.dia;
+    actualizar();
+  });
 
   form.querySelector('.presets').addEventListener('click', function (e) {
     var b = e.target.closest('[data-preset]');
@@ -462,11 +512,25 @@
   });
 
   // ---------- Resultados ----------
-  var NOMBRE_CAMPO = { peso: 'peso', altura: 'altura', edad: 'edad', factor: 'factor de actividad', ajuste: 'kcal del objetivo', protGkg: 'proteína', grasaPct: 'grasa' };
+  var NOMBRE_CAMPO = { peso: 'peso', altura: 'altura', edad: 'edad', factor: 'factor de actividad', ajuste: 'kcal del objetivo', protGkg: 'proteína', grasaPct: 'grasa', palBase: 'resto del día' };
 
   function renderResultados(p) {
-    var r = C.calcPerfil(p);
+    // p es el borrador del formulario (sin id): el ejercicio sale del perfil activo.
+    var real = activo();
+    var ent = real ? entrenoDe(real) : null;
+    var r = C.calcPerfilDia(p, ent, diaPerfil);
+    var porDia = p.modo === 'ejercicio';
     $('res-nombre').textContent = p.nombre || 'Sin nombre';
+    $('res-cuando').textContent = porDia ? 'Objetivo del ' + LARGO[diaPerfil] + (diaPerfil === HOY ? ' (hoy)' : '') : 'Objetivo diario';
+    var semana = $('res-semana');
+    semana.hidden = !porDia;
+    if (porDia && real) {
+      semana.innerHTML = DIAS.map(function (d) {
+        var rd = C.calcPerfilDia(p, ent, d);
+        return '<button type="button" class="dia-chip' + (d === HOY ? ' es-hoy' : '') + '" data-dia="' + d + '" aria-pressed="' + (d === diaPerfil) + '">' +
+          '<span>' + CORTO[d] + '</span><small>' + (rd.valido ? fmt(rd.objetivo, 0) : '—') + '</small></button>';
+      }).join('');
+    }
 
     var hintProt = $('hint-prot');
     hintProt.textContent = ok(p.protGkg) && ok(p.peso)
@@ -489,7 +553,10 @@
     var m = r.macros;
     $('res-objetivo').textContent = fmt(r.objetivo, 0);
     var aj = p.ajuste;
-    $('res-sub').textContent = 'TDEE ' + fmt(r.tdee, 0) + (aj < 0 ? ' − ' + fmt(-aj, 0) + ' de déficit' : aj > 0 ? ' + ' + fmt(aj, 0) + ' de superávit' : ' · mantenimiento');
+    var gasto = r.modo === 'ejercicio'
+      ? 'Gasto ' + fmt(r.tdee, 0) + (r.kcalEjercicio > 0 ? ' (base ' + fmt(r.tdee - r.kcalEjercicio, 0) + ' + ejercicio ' + fmt(r.kcalEjercicio, 0) + ')' : ' (sin ejercicio)')
+      : 'TDEE ' + fmt(r.tdee, 0);
+    $('res-sub').textContent = gasto + (aj < 0 ? ' − ' + fmt(-aj, 0) + ' de déficit' : aj > 0 ? ' + ' + fmt(aj, 0) + ' de superávit' : ' · mantenimiento');
 
     ['prot', 'grasa', 'carbs'].forEach(function (k) {
       $('res-' + k + '-g').textContent = fmt(m[k].g, 0);
@@ -542,8 +609,11 @@
     var filas = [
       ['TMB · Mifflin-St Jeor (' + (p.sexo === 'm' ? 'mujer' : 'hombre') + ')',
         '10 × ' + fmtUp(p.peso) + ' + 6,25 × ' + fmtUp(p.altura) + ' − 5 × ' + fmtUp(p.edad) + ' ' + cte + ' = <b>' + fmtUp(r.tmb, 2) + '</b>'],
-      ['TDEE',
-        fmtUp(r.tmb, 2) + ' × ' + fmtUp(p.factor, 3) + ' = <b>' + fmtUp(r.tdee, 2) + '</b>'],
+      r.modo === 'ejercicio'
+        ? ['Gasto del ' + LARGO[diaPerfil],
+          fmtUp(r.tmb, 2) + ' × ' + fmtUp(r.palBase, 3) + ' + ' + fmtUp(r.kcalEjercicio, 2) + ' de ejercicio = <b>' + fmtUp(r.tdee, 2) + '</b>']
+        : ['TDEE',
+          fmtUp(r.tmb, 2) + ' × ' + fmtUp(p.factor, 3) + ' = <b>' + fmtUp(r.tdee, 2) + '</b>'],
       ['Objetivo',
         fmtUp(r.tdee, 2) + ' ' + ajTxt + ' = <b>' + fmtUp(r.objetivo, 2) + ' kcal</b>'],
       ['Proteína',
@@ -669,6 +739,11 @@
   // Lo que comparten las demás pantallas (alimentos.js, recetas.js, dia.js).
   window.App = {
     getState: function () { return state; },
+    entrenoDe: entrenoDe,
+    calcDia: calcDia,
+    calcSemana: calcSemana,
+    opcionesPal: opcionesPal,
+    DIAS_INFO: { corto: CORTO, largo: LARGO, hoy: HOY },
     activo: activo,
     setActivo: function (id) { state.activo = id; persist(); },
     /** Cambia campos de un perfil (p. ej. factor o peso) y guarda. Devuelve los valores anteriores para deshacer. */

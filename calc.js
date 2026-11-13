@@ -91,15 +91,20 @@
 
   /**
    * Calcula todo el perfil de una vez.
-   * Devuelve { valido, faltan[], tmb, tdee, objetivo, imc, imcCat, macros, avisos[] }.
+   * dia (opcional) = { palBase, kcalEjercicio }: gasto de un día concreto con su ejercicio
+   *   (gasto = TMB × palBase + kcal del ejercicio de ese día). Sin `dia`, gasto = TMB × factor (igual todos los días).
+   * Devuelve { valido, faltan[], modo, tmb, tdee, objetivo, imc, imcCat, macros, avisos[] }.
    */
-  function calcPerfil(p) {
-    var faltan = CAMPOS_PERFIL.filter(function (k) { return !esNum(p[k]); });
+  function calcPerfil(p, dia) {
+    var porDia = !!dia;
+    var faltan = CAMPOS_PERFIL.filter(function (k) { return !(porDia && k === 'factor') && !esNum(p[k]); });
+    if (porDia && !esNum(dia.palBase)) faltan.push('palBase');
     if (faltan.length) {
       return { valido: false, faltan: faltan, avisos: [] };
     }
     var t = tmb(p);
-    var d = tdee(t, p.factor);
+    var ejercicio = porDia && esNum(dia.kcalEjercicio) ? dia.kcalEjercicio : 0;
+    var d = porDia ? t * dia.palBase + ejercicio : tdee(t, p.factor);
     var o = objetivo(d, p.ajuste);
     var m = macros(o, p.peso, p.protGkg, p.grasaPct);
     var i = imc(p.peso, p.altura);
@@ -121,6 +126,9 @@
     return {
       valido: true,
       faltan: [],
+      modo: porDia ? 'ejercicio' : 'factor',
+      palBase: porDia ? dia.palBase : null,
+      kcalEjercicio: ejercicio,
       tmb: t,
       tdee: d,
       objetivo: o,
@@ -400,29 +408,49 @@
     return { kg: kg, pct: (kg / peso) * 100 };
   }
 
-  // ---------- Ejercicio: lista de actividades ----------
+  // ---------- Ejercicio de cada día ----------
+  // entreno = { palBase, dias: { lun: [{ nombre, met, minutos, nota }], ... } }
+
+  /** kcal extra del ejercicio de un día: suma de (MET − 1,5) × kg × horas de cada actividad. */
+  function kcalEjercicioDia(actividades, peso) {
+    return (actividades || []).reduce(function (s, x) { return s + kcalActividad(x.met, peso, x.minutos); }, 0);
+  }
 
   /**
-   * Suma las actividades de la semana. Cada actividad: { nombre, met, minutos (por sesión), veces (por semana) }.
-   * kcal extra de cada sesión = (MET − 1,5) × kg × horas. Devuelve el detalle, el total semanal,
-   * el promedio por día, el mantenimiento y el factor de actividad equivalente.
-   * palBase = cómo es el resto del día sin contar el ejercicio (FAO: oficina ≈ 1,55).
+   * El perfil calculado para un día de la semana. Con modo «ejercicio», el gasto de ese día es
+   * TMB × resto del día + su ejercicio; con modo «factor», el de siempre (TMB × factor).
    */
-  function gastoActividades(actividades, peso, tmbKcal, palBase) {
-    var detalle = (actividades || []).map(function (x) {
-      var porSesion = kcalActividad(x.met, peso, x.minutos);
-      return { id: x.id, nombre: x.nombre, met: x.met, minutos: x.minutos, veces: x.veces, kcalSesion: porSesion, kcalSemana: porSesion * x.veces };
+  function calcPerfilDia(p, entreno, dia) {
+    if (p.modo !== 'ejercicio') return calcPerfil(p);
+    var e = entreno || {};
+    var lista = (e.dias && e.dias[dia]) || [];
+    return calcPerfil(p, { palBase: e.palBase, kcalEjercicio: esNum(p.peso) ? kcalEjercicioDia(lista, p.peso) : NaN });
+  }
+
+  /**
+   * Los 7 días del perfil y su promedio. Devuelve
+   * { porDia: { lun: resultado de calcPerfil, ... }, promedio: { tdee, objetivo, kcal, prot, grasa, carbs, kcalEjercicio } | null }.
+   */
+  function calcSemanaPerfil(p, entreno) {
+    var porDia = {};
+    var suma = { tdee: 0, objetivo: 0, kcal: 0, prot: 0, grasa: 0, carbs: 0, kcalEjercicio: 0 };
+    var validos = 0;
+    DIAS_SEMANA.forEach(function (d) {
+      var r = calcPerfilDia(p, entreno, d);
+      porDia[d] = r;
+      if (!r.valido) return;
+      validos += 1;
+      suma.tdee += r.tdee;
+      suma.objetivo += r.objetivo;
+      suma.kcal += r.objetivo;
+      suma.prot += r.macros.prot.g;
+      suma.grasa += r.macros.grasa.g;
+      suma.carbs += r.macros.carbs.g;
+      suma.kcalEjercicio += r.kcalEjercicio || 0;
     });
-    var semana = detalle.reduce(function (s, d) { return s + d.kcalSemana; }, 0);
-    var minutos = detalle.reduce(function (s, d) { return s + d.minutos * d.veces; }, 0);
-    return {
-      detalle: detalle,
-      kcalSemana: semana,
-      minutosSemana: minutos,
-      kcalDia: semana / 7,
-      tdee: tmbKcal * palBase + semana / 7,
-      factor: factorEquivalente(tmbKcal, palBase, semana)
-    };
+    if (validos < 7) return { porDia: porDia, promedio: null };
+    Object.keys(suma).forEach(function (k) { suma[k] /= 7; });
+    return { porDia: porDia, promedio: suma };
   }
 
   // ---------- Registro de peso y calibración (paso 5) ----------
@@ -565,11 +593,13 @@
     var aj = Math.abs(p.ajuste);
     var ratio = aj > 0 ? margen / aj : 0;
     lista.push({
-      id: 'factor', titulo: 'Factor de actividad', valor: '× ' + String(p.factor).replace('.', ','), guia: 'Comprobarlo con tu peso',
+      id: 'factor', titulo: r.modo === 'ejercicio' ? 'Gasto del día' : 'Factor de actividad',
+      valor: r.modo === 'ejercicio' ? 'base × ' + String(r.palBase).replace('.', ',') + ' + ejercicio' : '× ' + String(p.factor).replace('.', ','),
+      guia: 'Comprobarlo con tu peso',
       estado: ratio >= 0.75 ? 'warn' : 'info',
       nota: 'Es la parte más incierta del cálculo: un error del 10 % son ' + Math.round(margen) + ' kcal' +
         (aj > 0 ? ', ' + (ratio >= 1 ? 'más que' : ratio >= 0.75 ? 'casi lo mismo que' : 'menos que') + ' tu ajuste de ' + aj + ' kcal' : '') +
-        '. Si en 2–3 semanas el peso no se mueve como se espera, ajusta el factor.',
+        '. Si en 2–3 semanas el peso no se mueve como se espera, ' + (r.modo === 'ejercicio' ? 'ajusta el nivel del resto del día.' : 'ajusta el factor.'),
       fuente: FUENTES.fao
     });
 
@@ -587,7 +617,9 @@
     kcalActividad: kcalActividad,
     sesionRounds: sesionRounds,
     sesionBloques: sesionBloques,
-    gastoActividades: gastoActividades,
+    kcalEjercicioDia: kcalEjercicioDia,
+    calcPerfilDia: calcPerfilDia,
+    calcSemanaPerfil: calcSemanaPerfil,
     diaNum: diaNum,
     lunesDe: lunesDe,
     promediosSemanales: promediosSemanales,
